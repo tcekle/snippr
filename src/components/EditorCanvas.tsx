@@ -455,6 +455,9 @@ export function EditorCanvas() {
           <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>✂️</div>
           <div style={{ fontSize: 18, color: '#888' }}>Take a snip with</div>
           <div style={{ fontSize: 22, color: '#aaa', marginTop: 4, fontWeight: 600 }}>Win + Shift + S</div>
+          <div style={{ fontSize: 13, color: '#666', marginTop: 14 }}>
+            or paste (Ctrl+V) / drop an image file
+          </div>
         </div>
       )}
       <Stage

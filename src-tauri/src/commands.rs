@@ -1,7 +1,7 @@
 
 //! Tauri IPC commands exposed to the frontend.
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::{export, settings, state::AppState};
@@ -117,4 +117,35 @@ pub fn open_save_folder(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn hide_window(window: tauri::WebviewWindow) {
     let _ = window.hide();
+}
+
+/// Open an image file (drag-and-drop) as a new editor tab: decode to verify
+/// it's an image, then feed the standard pending-image flow.
+#[tauri::command]
+pub fn load_image_file(app: AppHandle, path: String) -> Result<(), String> {
+    let bytes = std::fs::read(&path).map_err(|e| format!("Could not read {path}: {e}"))?;
+    let img = image::load_from_memory(&bytes).map_err(|e| format!("Not a supported image: {e}"))?;
+    let (width, height) = (img.width(), img.height());
+
+    // PNG passes through untouched; everything else is re-encoded so the
+    // frontend only ever sees PNG.
+    let png = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        bytes
+    } else {
+        let mut buf = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut buf, image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
+        buf.into_inner()
+    };
+
+    {
+        let state = app.state::<AppState>();
+        *state.pending.lock().unwrap() = Some(crate::state::PendingImage { png, width, height });
+    }
+    app.emit_to(
+        "main",
+        "snip-captured",
+        serde_json::json!({"width": width, "height": height}),
+    )
+    .map_err(|e| e.to_string())
 }

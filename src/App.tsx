@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from './store/editorStore';
 import { useScreenshot } from './hooks/useScreenshot';
+import { useImageImport } from './hooks/useImageImport';
 import { useWatcherState } from './hooks/useWatcherState';
 import { useSettingsListener } from './hooks/useSettingsListener';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -22,6 +23,7 @@ function App() {
   useScreenshot();
   useWatcherState();
   useSettingsListener();
+  const { isDragging } = useImageImport();
 
   // Listen for scrolling capture errors emitted by the Rust side
   useEffect(() => {
@@ -97,6 +99,21 @@ function App() {
           <LayersPanel />
         </div>
       </div>
+      {isDragging && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: 'none',
+          border: '3px dashed var(--color-accent)', background: 'rgba(0,120,212,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--color-elevated)', border: '1px solid var(--color-border)',
+            borderRadius: 8, padding: '10px 22px', fontSize: 14, fontWeight: 600,
+            color: 'var(--color-text)',
+          }}>
+            Drop image to open
+          </div>
+        </div>
+      )}
       <SettingsModal />
       <ToastContainer />
     </div>
