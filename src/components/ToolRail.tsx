@@ -13,13 +13,15 @@ interface ToolItem {
 
 const TOOLS: ToolItem[] = [
   { tool: 'select', label: 'Select', hotkey: 'V', icon: <SelectIcon /> },
-  { tool: 'rect', label: 'Rectangle', hotkey: 'R', num: '2', icon: <RectIcon /> },
-  { tool: 'ellipse', label: 'Ellipse', hotkey: 'E', icon: <EllipseIcon /> },
-  { tool: 'arrow', label: 'Arrow', hotkey: 'A', num: '3', icon: <ArrowIcon /> },
+  // Number-row tools in badge order
   { tool: 'line', label: 'Line', hotkey: 'L', num: '1', icon: <LineIcon /> },
-  { tool: 'pen', label: 'Pen', hotkey: 'P', num: '5', icon: <PenIcon /> },
-  { tool: 'highlight', label: 'Highlight', hotkey: 'H', icon: <HighlightIcon /> },
+  { tool: 'rect', label: 'Rectangle', hotkey: 'R', num: '2', icon: <RectIcon /> },
+  { tool: 'arrow', label: 'Arrow', hotkey: 'A', num: '3', icon: <ArrowIcon /> },
   { tool: 'text', label: 'Text', hotkey: 'T', num: '4', icon: <TextIcon /> },
+  { tool: 'pen', label: 'Pen', hotkey: 'P', num: '5', icon: <PenIcon /> },
+  // Remaining tools
+  { tool: 'ellipse', label: 'Ellipse', hotkey: 'E', icon: <EllipseIcon /> },
+  { tool: 'highlight', label: 'Highlight', hotkey: 'H', icon: <HighlightIcon /> },
   { tool: 'badge', label: 'Badge', hotkey: 'B', icon: <BadgeIcon /> },
   { tool: 'pixelate', label: 'Pixelate', hotkey: 'X', icon: <PixelateIcon /> },
   { tool: 'crop', label: 'Crop', hotkey: 'C', icon: <CropIcon /> },
