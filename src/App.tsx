@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useEditorStore } from './store/editorStore';
 import { useScreenshot } from './hooks/useScreenshot';
 import { useWatcherState } from './hooks/useWatcherState';
@@ -21,6 +21,13 @@ function App() {
   useScreenshot();
   useWatcherState();
   useSettingsListener();
+
+  // README screenshot helper — only in dev, only with ?demo=1
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      import('./utils/demoMode').then((m) => m.maybeLoadDemo());
+    }
+  }, []);
 
   const handleCopy = useCallback(async () => {
     if (!screenshot.imageEl) return;
