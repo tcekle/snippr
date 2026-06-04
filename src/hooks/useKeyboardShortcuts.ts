@@ -33,6 +33,22 @@ export function useKeyboardShortcuts(onExport: () => Promise<void>) {
       useEditorStore.getState().setView({ scale: Math.max(0.1, view.scale / 1.2) });
       return;
     }
+    if (ctrl && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      const { activeTabId, closeTab } = useEditorStore.getState();
+      if (activeTabId) closeTab(activeTabId);
+      return;
+    }
+    if (ctrl && e.key === 'Tab') {
+      e.preventDefault();
+      const { tabs, activeTabId, switchTab } = useEditorStore.getState();
+      if (tabs.length < 2 || !activeTabId) return;
+      const idx = tabs.findIndex((t) => t.id === activeTabId);
+      const step = e.shiftKey ? -1 : 1;
+      const next = tabs[(idx + step + tabs.length) % tabs.length];
+      switchTab(next.id);
+      return;
+    }
 
     if (e.key === 'Escape') {
       e.preventDefault();

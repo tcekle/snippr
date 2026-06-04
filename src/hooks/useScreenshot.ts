@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
 
 export function useScreenshot() {
-  const setScreenshot = useEditorStore((s) => s.setScreenshot);
+  const addTab = useEditorStore((s) => s.addTab);
 
   async function loadPendingImage() {
     try {
@@ -14,7 +14,7 @@ export function useScreenshot() {
       const url = URL.createObjectURL(blob);
       const img = new Image();
       img.onload = () => {
-        setScreenshot(url, img.naturalWidth, img.naturalHeight, img);
+        addTab(url, img.naturalWidth, img.naturalHeight, img);
       };
       img.src = url;
     } catch (e) {

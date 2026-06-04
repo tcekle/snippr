@@ -12,6 +12,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { LayersPanel } from './components/LayersPanel';
 import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
+import { TabsBar } from './components/TabsBar';
 import { ToastContainer, showToast } from './components/Toast';
 
 function App() {
@@ -57,6 +58,7 @@ function App() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <ToolRail />
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <TabsBar />
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <EditorCanvas />
           </div>

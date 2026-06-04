@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import Konva from 'konva';
+import { nanoid } from 'nanoid';
 import type { Annotation, ToolType } from '../types/annotations';
 
 export interface SnipprSettings {
@@ -28,6 +29,55 @@ interface ViewState {
   y: number;
 }
 
+/** Everything that belongs to one snip document (parked when its tab is inactive). */
+interface DocSnapshot {
+  screenshot: ScreenshotState;
+  annotations: Annotation[];
+  history: HistoryEntry[];
+  future: HistoryEntry[];
+  cropRect: { x: number; y: number; width: number; height: number } | null;
+  nextBadge: number;
+  view: ViewState;
+}
+
+export interface TabInfo {
+  id: string;
+  label: string;
+  /** Parked document state; null for the active tab (its state lives in the flat fields). */
+  doc: DocSnapshot | null;
+}
+
+const EMPTY_DOC = {
+  screenshot: { url: null, width: 0, height: 0, imageEl: null } as ScreenshotState,
+  annotations: [] as Annotation[],
+  history: [] as HistoryEntry[],
+  future: [] as HistoryEntry[],
+  cropRect: null as DocSnapshot['cropRect'],
+  nextBadge: 1,
+  selectedId: null as string | null,
+  editingTextId: null as string | null,
+};
+
+function snapshotActive(state: EditorState): DocSnapshot {
+  return {
+    screenshot: state.screenshot,
+    annotations: state.annotations,
+    history: state.history,
+    future: state.future,
+    cropRect: state.cropRect,
+    nextBadge: state.nextBadge,
+    view: state.view,
+  };
+}
+
+/** Park the active tab's flat state back into its tab entry. */
+function parkActive(state: EditorState): TabInfo[] {
+  if (!state.activeTabId) return state.tabs;
+  return state.tabs.map((t) =>
+    t.id === state.activeTabId ? { ...t, doc: snapshotActive(state) } : t
+  );
+}
+
 interface EditorState {
   screenshot: ScreenshotState;
   annotations: Annotation[];
@@ -47,10 +97,16 @@ interface EditorState {
   stageRef: Konva.Stage | null;
   /** Incremented to ask EditorCanvas (which owns container size) to re-fit the view. */
   fitNonce: number;
+  tabs: TabInfo[];
+  activeTabId: string | null;
+  nextTabNum: number;
 }
 
 interface EditorActions {
-  setScreenshot: (url: string, w: number, h: number, imageEl: HTMLImageElement) => void;
+  /** New snip arrives: park the current tab (if any) and open a fresh one. */
+  addTab: (url: string, w: number, h: number, imageEl: HTMLImageElement) => void;
+  switchTab: (id: string) => void;
+  closeTab: (id: string) => void;
   addAnnotation: (anno: Annotation) => void;
   updateAnnotation: (id: string, partial: Partial<Annotation>, pushHistory?: boolean) => void;
   deleteSelected: () => void;
@@ -85,7 +141,7 @@ function pushHistoryEntry(state: EditorState): Pick<EditorState, 'history' | 'fu
   return { history, future: [] };
 }
 
-export const useEditorStore = create<EditorState & EditorActions>((set, get) => ({
+export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   screenshot: { url: null, width: 0, height: 0, imageEl: null },
   annotations: [],
   selectedId: null,
@@ -103,21 +159,66 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   settingsOpen: false,
   stageRef: null,
   fitNonce: 0,
+  tabs: [],
+  activeTabId: null,
+  nextTabNum: 1,
 
-  setScreenshot: (url, w, h, imageEl) => {
-    const prev = get().screenshot;
-    if (prev.url && prev.url !== url) {
-      URL.revokeObjectURL(prev.url);
-    }
-    set({
-      screenshot: { url, width: w, height: h, imageEl },
-      annotations: [],
-      history: [],
-      future: [],
-      cropRect: null,
-      nextBadge: 1,
-      selectedId: null,
-      editingTextId: null,
+  addTab: (url, w, h, imageEl) => {
+    set((state) => {
+      const tabs = parkActive(state);
+      const id = nanoid();
+      return {
+        tabs: [...tabs, { id, label: `Snip ${state.nextTabNum}`, doc: null }],
+        nextTabNum: state.nextTabNum + 1,
+        activeTabId: id,
+        ...EMPTY_DOC,
+        screenshot: { url, width: w, height: h, imageEl },
+      };
+    });
+  },
+
+  switchTab: (id) => {
+    set((state) => {
+      if (id === state.activeTabId) return {};
+      const target = state.tabs.find((t) => t.id === id);
+      if (!target?.doc) return {};
+      const doc = target.doc;
+      const tabs = parkActive(state).map((t) => (t.id === id ? { ...t, doc: null } : t));
+      return {
+        tabs,
+        activeTabId: id,
+        ...doc,
+        selectedId: null,
+        editingTextId: null,
+      };
+    });
+  },
+
+  closeTab: (id) => {
+    set((state) => {
+      const idx = state.tabs.findIndex((t) => t.id === id);
+      if (idx < 0) return {};
+      const closing = state.tabs[idx];
+      const url = closing.doc ? closing.doc.screenshot.url
+        : id === state.activeTabId ? state.screenshot.url : null;
+      if (url) URL.revokeObjectURL(url);
+
+      const tabs = state.tabs.filter((t) => t.id !== id);
+      if (id !== state.activeTabId) return { tabs };
+
+      // Closing the active tab: activate the right neighbor, else left, else empty state
+      const neighbor = tabs[idx] ?? tabs[idx - 1];
+      if (!neighbor?.doc) {
+        return { tabs, activeTabId: null, ...EMPTY_DOC };
+      }
+      const doc = neighbor.doc;
+      return {
+        tabs: tabs.map((t) => (t.id === neighbor.id ? { ...t, doc: null } : t)),
+        activeTabId: neighbor.id,
+        ...doc,
+        selectedId: null,
+        editingTextId: null,
+      };
     });
   },
 
