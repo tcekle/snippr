@@ -8,10 +8,9 @@ interface Props {
   containerRef: React.RefObject<HTMLDivElement | null>;
   view: { scale: number; x: number; y: number };
   onCommit: (text: string) => void;
-  onCancel: () => void;
 }
 
-export function TextEditOverlay({ anno, view, onCommit, onCancel, containerRef }: Props) {
+export function TextEditOverlay({ anno, view, onCommit, containerRef }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const committed = useRef(false);
 
@@ -30,12 +29,6 @@ export function TextEditOverlay({ anno, view, onCommit, onCancel, containerRef }
     if (committed.current) return;
     committed.current = true;
     onCommit(textareaRef.current?.value ?? anno.text);
-  };
-
-  const cancel = () => {
-    if (committed.current) return;
-    committed.current = true;
-    onCancel();
   };
 
   return (
@@ -62,8 +55,10 @@ export function TextEditOverlay({ anno, view, onCommit, onCancel, containerRef }
         overflow: 'hidden',
       }}
       onKeyDown={(e) => {
+        // Esc behaves like clicking outside: commit what's typed
+        // (commit of empty text deletes the annotation).
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
-        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        if (e.key === 'Escape') { e.preventDefault(); commit(); }
       }}
       onBlur={commit}
     />

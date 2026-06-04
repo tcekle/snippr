@@ -126,22 +126,9 @@ export function EditorCanvas() {
       return;
     }
 
-    if (activeTool === 'text') {
-      const id = nanoid();
-      const anno: TextAnno = {
-        id, type: 'text',
-        x: pos.x, y: pos.y,
-        // Empty: the edit overlay opens immediately and typing starts clean.
-        // (A placeholder value would get its selection collapsed by the
-        // pointerup that follows this pointerdown.)
-        text: '',
-        fontSize,
-        fill: strokeColor,
-      };
-      addAnnotation(anno);
-      setEditingTextId(id);
-      return;
-    }
+    // Text is created on pointerUP: a textarea mounted during pointerdown
+    // loses focus to the browser's own mousedown focus handling.
+    if (activeTool === 'text') return;
 
     if (activeTool === 'badge') {
       const anno: BadgeAnno = {
@@ -207,8 +194,26 @@ export function EditorCanvas() {
     }
   }, [inProgress, getPointerPos, setView]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: KonvaEventObject<PointerEvent>) => {
     if (isPanning.current) { isPanning.current = false; return; }
+
+    // Create text here (not on pointerdown): focus only moves on mousedown,
+    // so a textarea mounted after the release keeps focus and typing starts
+    // immediately.
+    if (activeTool === 'text' && e.evt.button === 0) {
+      const pos = getPointerPos();
+      const id = nanoid();
+      addAnnotation({
+        id, type: 'text',
+        x: pos.x, y: pos.y,
+        text: '',
+        fontSize,
+        fill: strokeColor,
+      } satisfies TextAnno);
+      setEditingTextId(id);
+      return;
+    }
+
     if (!isDrawing.current || !inProgress) return;
     isDrawing.current = false;
 
@@ -271,7 +276,7 @@ export function EditorCanvas() {
       setSelectedId(committed.id);
     }
     setInProgress(null);
-  }, [activeTool, inProgress, strokeColor, strokeWidth, addAnnotation, setCropRect, setSelectedId]);
+  }, [activeTool, inProgress, strokeColor, strokeWidth, fontSize, addAnnotation, setCropRect, setSelectedId, setEditingTextId, getPointerPos]);
 
   const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -614,16 +619,6 @@ export function EditorCanvas() {
               } else {
                 const store2 = useEditorStore.getState();
                 store2.pushHistory();
-                useEditorStore.setState({
-                  annotations: store2.annotations.filter((a) => a.id !== editingTextId),
-                });
-              }
-              setEditingTextId(null);
-            }}
-            onCancel={() => {
-              // If brand new (empty text), delete it
-              if (!textAnno.text.trim()) {
-                const store2 = useEditorStore.getState();
                 useEditorStore.setState({
                   annotations: store2.annotations.filter((a) => a.id !== editingTextId),
                 });
