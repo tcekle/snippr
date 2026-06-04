@@ -1,14 +1,18 @@
-import React from 'react';
-import { HexColorPicker } from 'react-colorful';
+import React, { useState } from 'react';
+import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
 
+// The usual defaults (iOS system palette) — the last grid tile opens the custom picker
 const PRESET_COLORS = [
-  '#ff3b30', '#ff9500', '#ffcc00', '#34c759',
-  '#007aff', '#5856d6', '#ffffff', '#000000',
+  '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#007aff',
+  '#5856d6', '#af52de', '#ff2d55', '#ffffff', '#000000',
 ];
 
 export function PropertiesPanel() {
   const { strokeColor, strokeWidth, fontSize, activeTool, setStrokeColor, setStrokeWidth, setFontSize } = useEditorStore();
+  const isPreset = PRESET_COLORS.includes(strokeColor);
+  // Auto-open when the current color is already a custom one
+  const [customOpen, setCustomOpen] = useState(() => !isPreset);
 
   const showFontSize = activeTool === 'text';
   const showPixelSize = activeTool === 'pixelate';
@@ -20,29 +24,67 @@ export function PropertiesPanel() {
     }}>
       <div>
         <Label>Color</Label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
           {PRESET_COLORS.map((c) => (
             <button
               key={c}
               onClick={() => setStrokeColor(c)}
               title={c}
               style={{
-                width: 22, height: 22, borderRadius: 4,
+                width: '100%', aspectRatio: '1', borderRadius: 4,
                 background: c,
                 border: c === strokeColor ? '2px solid var(--color-accent)' : '2px solid transparent',
+                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
                 cursor: 'pointer', padding: 0,
                 outline: 'none',
               }}
             />
           ))}
+          {/* Custom color tile — toggles the full picker */}
+          <button
+            onClick={() => setCustomOpen(!customOpen)}
+            title="Custom color…"
+            style={{
+              width: '100%', aspectRatio: '1', borderRadius: 4,
+              background: 'conic-gradient(#ff3b30, #ffcc00, #34c759, #00c7be, #007aff, #af52de, #ff3b30)',
+              border: !isPreset ? '2px solid var(--color-accent)' : '2px solid transparent',
+              cursor: 'pointer', padding: 0,
+              outline: 'none',
+              position: 'relative',
+            }}
+          >
+            {!isPreset && (
+              // Show the picked custom color in the tile's center
+              <span style={{
+                position: 'absolute', inset: 4, borderRadius: 2,
+                background: strokeColor,
+                border: '1px solid rgba(255,255,255,0.4)',
+              }} />
+            )}
+          </button>
         </div>
-        <div style={{ borderRadius: 8, overflow: 'hidden' }}>
-          <HexColorPicker color={strokeColor} onChange={setStrokeColor} style={{ width: '100%' }} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-          <div style={{ width: 20, height: 20, borderRadius: 4, background: strokeColor, flexShrink: 0, border: '1px solid rgba(255,255,255,0.2)' }} />
-          <code style={{ color: 'var(--color-text)', fontSize: 12 }}>{strokeColor}</code>
-        </div>
+        {customOpen && (
+          <>
+            <div style={{ borderRadius: 8, overflow: 'hidden', marginTop: 10 }}>
+              <HexColorPicker color={strokeColor} onChange={setStrokeColor} style={{ width: '100%' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 4, background: strokeColor, flexShrink: 0, border: '1px solid rgba(255,255,255,0.2)' }} />
+              <HexColorInput
+                color={strokeColor}
+                onChange={setStrokeColor}
+                prefixed
+                style={{
+                  width: '100%', minWidth: 0,
+                  background: 'var(--color-surface)', color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)', borderRadius: 4,
+                  padding: '4px 6px', fontSize: 12, fontFamily: 'monospace',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <div>
