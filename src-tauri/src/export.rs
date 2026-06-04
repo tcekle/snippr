@@ -42,6 +42,15 @@ pub fn write_clipboard_png(app: &AppHandle, png: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Save to an explicit destination chosen via the frontend save dialog.
+pub fn save_png_to(path: &std::path::Path, png: &[u8]) -> Result<PathBuf, String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("create dir failed: {e}"))?;
+    }
+    std::fs::write(path, png).map_err(|e| format!("write {path:?}: {e}"))?;
+    Ok(path.to_path_buf())
+}
+
 /// Save a PNG byte-slice to `<save_directory>/snippr_YYYYMMDD_HHMMSS.png`.
 /// Returns the full path of the written file.
 pub fn save_png_file(app: &AppHandle, png: &[u8]) -> Result<PathBuf, String> {

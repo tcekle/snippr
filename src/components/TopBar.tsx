@@ -2,10 +2,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
 
 interface Props {
-  onExport: () => Promise<void>;
+  onCopy: () => Promise<void>;
+  onSave: () => Promise<void>;
 }
 
-export function TopBar({ onExport }: Props) {
+export function TopBar({ onCopy, onSave }: Props) {
   const { paused, setSettingsOpen, screenshot } = useEditorStore();
 
   return (
@@ -31,17 +32,33 @@ export function TopBar({ onExport }: Props) {
       <div style={{ flex: 1 }} />
 
       {screenshot.imageEl && (
-        <button
-          onClick={onExport}
-          style={{
-            background: 'var(--color-accent)', color: '#fff', border: 'none',
-            borderRadius: 6, padding: '5px 16px', fontSize: 13, fontWeight: 600,
-            cursor: 'pointer',
-          }}
-          title="Export (Ctrl+Enter)"
-        >
-          Export
-        </button>
+        <>
+          <button
+            onClick={onCopy}
+            style={{
+              background: 'var(--color-accent)', color: '#fff', border: 'none',
+              borderRadius: 6, padding: '5px 14px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+            title="Copy to clipboard (Ctrl+C)"
+          >
+            <CopyIcon />
+            Copy
+          </button>
+          <button
+            onClick={onSave}
+            style={{
+              background: 'transparent', color: 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6, padding: '5px 14px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+            title="Save as… (Ctrl+S)"
+          >
+            <SaveIcon />
+            Save
+          </button>
+        </>
       )}
 
       <button
@@ -69,6 +86,26 @@ export function TopBar({ onExport }: Props) {
         <GearIcon />
       </button>
     </div>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
+        stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h7.8L14 4.7v7.8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5z"
+        stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M5 2v3.5h5V2M5 14v-4.5h6V14" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
   );
 }
 

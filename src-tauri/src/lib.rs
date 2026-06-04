@@ -45,7 +45,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_pending_image,
-            commands::export_annotated,
+            commands::copy_annotated,
+            commands::save_annotated,
             commands::get_settings,
             commands::set_settings,
             commands::open_save_folder,

@@ -1,7 +1,7 @@
 
 //! Tauri IPC commands exposed to the frontend.
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 
 use crate::{export, settings, state::AppState};
@@ -19,36 +19,62 @@ pub fn get_pending_image(state: tauri::State<'_, AppState>) -> tauri::ipc::Respo
     tauri::ipc::Response::new(bytes)
 }
 
-/// Accept the annotated PNG (raw body), write clipboard / save file per settings,
-/// then hide the editor window.  Returns the saved file path if auto-save is on.
+/// Copy the annotated PNG (raw body) to the clipboard. Window stays open.
 #[tauri::command]
-pub fn export_annotated(
-    app: AppHandle,
-    request: tauri::ipc::Request<'_>,
-) -> Result<Option<String>, String> {
+pub fn copy_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(png) = request.body() else {
+        return Err("expected raw PNG body".into());
+    };
+    export::write_clipboard_png(&app, png)
+}
+
+/// Save the annotated PNG (raw body). The `save-path` header (percent-encoded,
+/// from the frontend save dialog) picks the destination; without it the file
+/// goes to the configured save directory with a timestamped name.
+#[tauri::command]
+pub fn save_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(png) = request.body() else {
         return Err("expected raw PNG body".into());
     };
 
-    let s = settings::load(&app);
-    let mut saved_path = None;
+    let explicit = request
+        .headers()
+        .get("save-path")
+        .and_then(|v| v.to_str().ok())
+        .map(percent_decode);
 
-    if s.copy_to_clipboard {
-        export::write_clipboard_png(&app, png)?;
-    }
-    if s.auto_save {
-        saved_path = Some(
-            export::save_png_file(&app, png)?
-                .to_string_lossy()
-                .into_owned(),
-        );
-    }
+    let saved = match explicit {
+        Some(p) if !p.is_empty() => export::save_png_to(std::path::Path::new(&p), png)?,
+        _ => export::save_png_file(&app, png)?,
+    };
+    Ok(saved.to_string_lossy().into_owned())
+}
 
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.hide();
+/// Minimal percent-decoder for header-safe UTF-8 paths (encodeURIComponent on the JS side).
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let decoded = (bytes[i] == b'%')
+            .then(|| {
+                let h = (*bytes.get(i + 1)? as char).to_digit(16)?;
+                let l = (*bytes.get(i + 2)? as char).to_digit(16)?;
+                Some((h * 16 + l) as u8)
+            })
+            .flatten();
+        match decoded {
+            Some(b) => {
+                out.push(b);
+                i += 3;
+            }
+            None => {
+                out.push(bytes[i]);
+                i += 1;
+            }
+        }
     }
-
-    Ok(saved_path)
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Return the current settings to the frontend.

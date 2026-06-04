@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
 import type { ToolType } from '../types/annotations';
 
-export function useKeyboardShortcuts(onExport: () => Promise<void>) {
+export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => Promise<void>) {
   const {
     undo, redo, deleteSelected, setTool, activeTool,
     editingTextId, setEditingTextId, setCropRect, cropRect,
@@ -18,8 +18,9 @@ export function useKeyboardShortcuts(onExport: () => Promise<void>) {
 
     if (ctrl && e.key === 'z') { e.preventDefault(); undo(); return; }
     if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); return; }
-    if (ctrl && e.key === 's') { e.preventDefault(); onExport(); return; }
-    if (ctrl && e.key === 'Enter') { e.preventDefault(); onExport(); return; }
+    if (ctrl && e.key === 's') { e.preventDefault(); onSave(); return; }
+    if (ctrl && e.key === 'c') { e.preventDefault(); onCopy(); return; }
+    if (ctrl && e.key === 'Enter') { e.preventDefault(); onCopy(); return; }
     if (ctrl && e.key === '0') { e.preventDefault(); useEditorStore.getState().requestFit(); return; }
     if (ctrl && (e.key === '=' || e.key === '+')) {
       e.preventDefault();
@@ -81,7 +82,7 @@ export function useKeyboardShortcuts(onExport: () => Promise<void>) {
     if (!ctrl && toolMap[e.key.toLowerCase()]) {
       setTool(toolMap[e.key.toLowerCase()]);
     }
-  }, [undo, redo, deleteSelected, setTool, activeTool, editingTextId, setEditingTextId, setCropRect, cropRect, setSelectedId, selectedId, onExport]);
+  }, [undo, redo, deleteSelected, setTool, activeTool, editingTextId, setEditingTextId, setCropRect, cropRect, setSelectedId, selectedId, onCopy, onSave]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

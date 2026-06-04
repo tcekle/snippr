@@ -4,7 +4,7 @@ import { useScreenshot } from './hooks/useScreenshot';
 import { useWatcherState } from './hooks/useWatcherState';
 import { useSettingsListener } from './hooks/useSettingsListener';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { exportAnnotated } from './utils/exportPng';
+import { copyAnnotated, saveAnnotatedAs } from './utils/exportPng';
 import { TopBar } from './components/TopBar';
 import { ToolRail } from './components/ToolRail';
 import { EditorCanvas } from './components/EditorCanvas';
@@ -22,21 +22,27 @@ function App() {
   useWatcherState();
   useSettingsListener();
 
-  const handleExport = useCallback(async () => {
+  const handleCopy = useCallback(async () => {
     if (!screenshot.imageEl) return;
     try {
-      const path = await exportAnnotated();
-      if (path) {
-        showToast(`Saved: ${path}`);
-      } else {
-        showToast('Copied to clipboard');
-      }
+      await copyAnnotated();
+      showToast('Copied to clipboard');
     } catch (e) {
-      showToast(`Export failed: ${String(e)}`, true);
+      showToast(`Copy failed: ${String(e)}`, true);
     }
   }, [screenshot.imageEl]);
 
-  useKeyboardShortcuts(handleExport);
+  const handleSave = useCallback(async () => {
+    if (!screenshot.imageEl) return;
+    try {
+      const path = await saveAnnotatedAs();
+      if (path) showToast(`Saved: ${path}`);
+    } catch (e) {
+      showToast(`Save failed: ${String(e)}`, true);
+    }
+  }, [screenshot.imageEl]);
+
+  useKeyboardShortcuts(handleCopy, handleSave);
 
   const handleFit = useCallback(() => {
     if (!screenshot.imageEl) return;
@@ -54,7 +60,7 @@ function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <TopBar onExport={handleExport} />
+      <TopBar onCopy={handleCopy} onSave={handleSave} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <ToolRail />
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
