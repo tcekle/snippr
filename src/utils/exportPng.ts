@@ -1,6 +1,24 @@
+import Konva from 'konva';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { useEditorStore, type SnipprSettings } from '../store/editorStore';
+
+const CANVAS_BG = '#181818'; // matches the editor canvas background
+
+/** Image rect grown to cover annotations that spill past the screenshot edges.
+ * Requires the stage transform to be reset to identity first. */
+function computeExportBounds(stage: Konva.Stage, img: HTMLImageElement) {
+  const imgRect = { x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight };
+  const annoLayer = stage.getLayers()[1];
+  if (!annoLayer) return imgRect;
+  const a = annoLayer.getClientRect({ relativeTo: stage });
+  if (a.width === 0 || a.height === 0) return imgRect;
+  const minX = Math.floor(Math.min(0, a.x));
+  const minY = Math.floor(Math.min(0, a.y));
+  const maxX = Math.ceil(Math.max(imgRect.width, a.x + a.width));
+  const maxY = Math.ceil(Math.max(imgRect.height, a.y + a.height));
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 /** Flatten background + annotations to a native-resolution PNG (crop applied). */
 function renderAnnotatedPng(): Uint8Array {
@@ -27,7 +45,16 @@ function renderAnnotatedPng(): Uint8Array {
 
   const { cropRect } = store;
   const img = store.screenshot.imageEl;
-  const rect = cropRect ?? { x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight };
+  // Explicit crop wins; otherwise grow to include annotations outside the image
+  const rect = cropRect ?? computeExportBounds(stage, img);
+
+  // Solid canvas-colored backdrop so out-of-image annotations don't sit on
+  // transparency (alpha is unreliable through the Windows clipboard)
+  const bg = new Konva.Rect({ ...rect, fill: CANVAS_BG, listening: false });
+  const bgLayer = stage.getLayers()[0];
+  bgLayer.add(bg);
+  bg.moveToBottom();
+  stage.batchDraw();
 
   const dataURL = stage.toDataURL({
     x: rect.x,
@@ -39,6 +66,7 @@ function renderAnnotatedPng(): Uint8Array {
   });
 
   // Restore view
+  bg.destroy();
   stage.scale({ x: savedView.scale, y: savedView.scale });
   stage.position({ x: savedView.x, y: savedView.y });
   if (overlayLayer) overlayLayer.visible(true);
