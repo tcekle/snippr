@@ -554,6 +554,8 @@ export function EditorCanvas() {
           <Transformer
             ref={transformerRef}
             rotateEnabled={false}
+            // Whole selection box is draggable — no need to grab the stroke itself
+            shouldOverdrawWholeArea
             onTransformEnd={(e) => {
               const node = e.target as Konva.Node;
               const id = node.id();
