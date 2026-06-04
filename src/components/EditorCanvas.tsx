@@ -448,8 +448,22 @@ export function EditorCanvas() {
     return 'crosshair';
   };
 
+  // Design-tool dot grid that pans/zooms with the stage; hidden when zoomed
+  // out far enough that the dots would alias into noise.
+  const dotSpacing = 16 * view.scale;
+  const dotGrid = dotSpacing >= 6
+    ? {
+        backgroundImage: 'radial-gradient(circle, #2e2e2e 1px, transparent 1px)',
+        backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
+        backgroundPosition: `${view.x}px ${view.y}px`,
+      }
+    : {};
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#181818', position: 'relative' }}>
+    <div ref={containerRef} style={{
+      width: '100%', height: '100%', overflow: 'hidden',
+      backgroundColor: '#181818', position: 'relative', ...dotGrid,
+    }}>
       {!screenshot.imageEl && (
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
