@@ -15,8 +15,7 @@ export function PropertiesPanel() {
 
   return (
     <div style={{
-      width: 220, padding: '12px 14px', background: 'var(--color-elevated)',
-      borderLeft: '1px solid var(--color-border)', overflow: 'auto',
+      padding: '12px 14px', overflow: 'auto', flexShrink: 0, maxHeight: '60%',
       display: 'flex', flexDirection: 'column', gap: 16,
     }}>
       <div>

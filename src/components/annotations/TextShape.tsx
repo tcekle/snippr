@@ -7,10 +7,11 @@ interface Props {
   selected: boolean;
   editing: boolean;
   onSelect: () => void;
+  onEdit: () => void;
   onChange: (partial: Partial<TextAnno>, pushHistory?: boolean) => void;
 }
 
-export function TextShape({ anno, editing, onSelect, onChange }: Props) {
+export function TextShape({ anno, editing, onSelect, onEdit, onChange }: Props) {
   if (editing) return null;
   return (
     <Text
@@ -23,7 +24,8 @@ export function TextShape({ anno, editing, onSelect, onChange }: Props) {
       draggable
       onClick={onSelect}
       onTap={onSelect}
-      onDblClick={onSelect}
+      onDblClick={onEdit}
+      onDblTap={onEdit}
       onDragEnd={(e: KonvaEventObject<DragEvent>) => {
         onChange({ x: e.target.x(), y: e.target.y() }, true);
       }}

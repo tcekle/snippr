@@ -69,6 +69,9 @@ interface EditorActions {
   setStageRef: (ref: Konva.Stage | null) => void;
   pushHistory: () => void;
   requestFit: () => void;
+  /** Select from the layers panel: switches to the select tool and targets the annotation. */
+  selectAnnotation: (id: string) => void;
+  deleteAnnotation: (id: string) => void;
 }
 
 const MAX_HISTORY = 100;
@@ -240,5 +243,21 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
 
   requestFit: () => {
     set((state) => ({ fitNonce: state.fitNonce + 1 }));
+  },
+
+  selectAnnotation: (id) => {
+    set({ activeTool: 'select', selectedId: id, editingTextId: null });
+  },
+
+  deleteAnnotation: (id) => {
+    set((state) => {
+      const histSnap = pushHistoryEntry(state);
+      return {
+        ...histSnap,
+        annotations: state.annotations.filter((a) => a.id !== id),
+        selectedId: state.selectedId === id ? null : state.selectedId,
+        editingTextId: state.editingTextId === id ? null : state.editingTextId,
+      };
+    });
   },
 }));

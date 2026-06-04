@@ -148,10 +148,12 @@ export function EditorCanvas() {
         radius: 16,
       };
       addAnnotation(anno);
+      setSelectedId(anno.id);
       return;
     }
 
     isDrawing.current = true;
+    setSelectedId(null); // starting a new draw drops any prior selection
 
     if (activeTool === 'rect' || activeTool === 'pixelate') {
       setInProgress({ type: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
@@ -212,61 +214,60 @@ export function EditorCanvas() {
       return;
     }
 
+    let committed: Annotation | null = null;
     if (activeTool === 'rect' && inProgress.type === 'rect' && inProgress.width > 2 && inProgress.height > 2) {
-      const anno: RectAnno = {
+      committed = {
         id: nanoid(), type: 'rect',
         x: inProgress.x, y: inProgress.y,
         width: inProgress.width, height: inProgress.height,
         stroke: strokeColor, strokeWidth,
-      };
-      addAnnotation(anno);
+      } satisfies RectAnno;
     } else if (activeTool === 'ellipse' && inProgress.type === 'ellipse' && inProgress.radiusX > 1) {
-      const anno: EllipseAnno = {
+      committed = {
         id: nanoid(), type: 'ellipse',
         x: inProgress.x, y: inProgress.y,
         radiusX: inProgress.radiusX, radiusY: inProgress.radiusY,
         stroke: strokeColor, strokeWidth,
-      };
-      addAnnotation(anno);
+      } satisfies EllipseAnno;
     } else if (activeTool === 'arrow' && inProgress.type === 'arrow') {
-      const anno: ArrowAnno = {
+      committed = {
         id: nanoid(), type: 'arrow',
         points: inProgress.points,
         stroke: strokeColor, strokeWidth,
-      };
-      addAnnotation(anno);
+      } satisfies ArrowAnno;
     } else if (activeTool === 'line' && inProgress.type === 'line') {
-      const anno: LineAnno = {
+      committed = {
         id: nanoid(), type: 'line',
         points: inProgress.points,
         stroke: strokeColor, strokeWidth,
-      };
-      addAnnotation(anno);
+      } satisfies LineAnno;
     } else if (activeTool === 'pen' && inProgress.type === 'pen' && inProgress.points.length > 2) {
-      const anno: PenAnno = {
+      committed = {
         id: nanoid(), type: 'pen',
         points: inProgress.points,
         stroke: strokeColor, strokeWidth,
-      };
-      addAnnotation(anno);
+      } satisfies PenAnno;
     } else if (activeTool === 'highlight' && inProgress.type === 'highlight' && inProgress.points.length > 2) {
-      const anno: HighlightAnno = {
+      committed = {
         id: nanoid(), type: 'highlight',
         points: inProgress.points,
         stroke: '#ffe600', strokeWidth,
-      };
-      addAnnotation(anno);
+      } satisfies HighlightAnno;
     } else if (activeTool === 'pixelate' && inProgress.type === 'pixelate' && inProgress.width > 5 && inProgress.height > 5) {
-      const anno: PixelateAnno = {
+      committed = {
         id: nanoid(), type: 'pixelate',
         x: inProgress.x, y: inProgress.y,
         width: inProgress.width, height: inProgress.height,
         pixelSize: 12,
-      };
-      addAnnotation(anno);
+      } satisfies PixelateAnno;
+    }
+    if (committed) {
+      addAnnotation(committed);
+      // Auto-select so Delete / transform / properties apply immediately
+      setSelectedId(committed.id);
     }
     setInProgress(null);
-  }, [activeTool, inProgress, strokeColor, strokeWidth, addAnnotation, setCropRect]);
+  }, [activeTool, inProgress, strokeColor, strokeWidth, addAnnotation, setCropRect, setSelectedId]);
 
   const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -379,6 +380,7 @@ export function EditorCanvas() {
       case 'text':
         return <TextShape key={anno.id} anno={anno} selected={sel} editing={editingTextId === anno.id}
           onSelect={onSelect}
+          onEdit={() => setEditingTextId(anno.id)}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<TextAnno>, h)} />;
       case 'badge':
         return <BadgeShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
@@ -391,7 +393,7 @@ export function EditorCanvas() {
       default:
         return null;
     }
-  }, [selectedId, activeTool, editingTextId, screenshot.imageEl, setSelectedId, updateAnnotation]);
+  }, [selectedId, activeTool, editingTextId, screenshot.imageEl, setSelectedId, setEditingTextId, updateAnnotation]);
 
   const imgWidth = screenshot.width;
   const imgHeight = screenshot.height;

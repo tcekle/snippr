@@ -9,6 +9,7 @@ import { TopBar } from './components/TopBar';
 import { ToolRail } from './components/ToolRail';
 import { EditorCanvas } from './components/EditorCanvas';
 import { PropertiesPanel } from './components/PropertiesPanel';
+import { LayersPanel } from './components/LayersPanel';
 import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
 import { ToastContainer, showToast } from './components/Toast';
@@ -61,7 +62,14 @@ function App() {
           </div>
           <StatusBar onFit={handleFit} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
         </div>
-        <PropertiesPanel />
+        <div style={{
+          width: 220, display: 'flex', flexDirection: 'column',
+          background: 'var(--color-elevated)', borderLeft: '1px solid var(--color-border)',
+          overflow: 'hidden',
+        }}>
+          <PropertiesPanel />
+          <LayersPanel />
+        </div>
       </div>
       <SettingsModal />
       <ToastContainer />
