@@ -42,6 +42,7 @@ export function TextEditOverlay({ anno, view, onCommit, onCancel, containerRef }
     <textarea
       ref={textareaRef}
       defaultValue={anno.text}
+      placeholder="Text"
       style={{
         position: 'fixed',
         left: screenX,

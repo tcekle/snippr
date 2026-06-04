@@ -131,7 +131,10 @@ export function EditorCanvas() {
       const anno: TextAnno = {
         id, type: 'text',
         x: pos.x, y: pos.y,
-        text: 'Text',
+        // Empty: the edit overlay opens immediately and typing starts clean.
+        // (A placeholder value would get its selection collapsed by the
+        // pointerup that follows this pointerdown.)
+        text: '',
         fontSize,
         fill: strokeColor,
       };
@@ -466,15 +469,23 @@ export function EditorCanvas() {
     }}>
       {!screenshot.imageEl && (
         <div style={{
-          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', color: '#666', userSelect: 'none',
+          position: 'absolute', inset: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', userSelect: 'none',
           pointerEvents: 'none',
         }}>
-          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>✂️</div>
-          <div style={{ fontSize: 18, color: '#888' }}>Take a snip with</div>
-          <div style={{ fontSize: 22, color: '#aaa', marginTop: 4, fontWeight: 600 }}>Win + Shift + S</div>
-          <div style={{ fontSize: 13, color: '#666', marginTop: 14 }}>
-            or paste (Ctrl+V) / drop an image file
+          {/* Card so the hint reads as a unit over the dot grid */}
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            background: '#1f1f1f', border: '1px solid #2e2e2e', borderRadius: 12,
+            padding: '36px 56px', color: '#666',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.35)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>✂️</div>
+            <div style={{ fontSize: 18, color: '#888' }}>Take a snip with</div>
+            <div style={{ fontSize: 22, color: '#aaa', marginTop: 4, fontWeight: 600 }}>Win + Shift + S</div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 14 }}>
+              or paste (Ctrl+V) / drop an image file
+            </div>
           </div>
         </div>
       )}
