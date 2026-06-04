@@ -102,23 +102,32 @@ pub fn begin_selection(app: &AppHandle) {
         }
     };
 
-    let _ = win.set_position(PhysicalPosition::new(mon_x, mon_y));
-    let _ = win.set_size(PhysicalSize::new(mon_w, mon_h));
-    let _ = win.show();
+    if let Err(e) = win.set_position(PhysicalPosition::new(mon_x, mon_y)) {
+        log::error!("scrolling_capture: overlay set_position failed: {e}");
+    }
+    if let Err(e) = win.set_size(PhysicalSize::new(mon_w, mon_h)) {
+        log::error!("scrolling_capture: overlay set_size failed: {e}");
+    }
+    if let Err(e) = win.show() {
+        log::error!("scrolling_capture: overlay show failed: {e}");
+    }
     let _ = win.set_focus();
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
 /// Called from the frontend "start select" button / shortcut.
+/// async: on Windows, creating a webview window inside a *sync* command
+/// deadlocks (build() blocks on the main thread, which is blocked on the
+/// command's IPC response).
 #[tauri::command]
-pub fn begin_scrolling_selection(app: AppHandle) {
+pub async fn begin_scrolling_selection(app: AppHandle) {
     begin_selection(&app);
 }
 
 /// Cancel mid-selection: destroy overlay, restore main window.
 #[tauri::command]
-pub fn cancel_scrolling_selection(app: AppHandle) {
+pub async fn cancel_scrolling_selection(app: AppHandle) {
     if let Some(win) = app.get_webview_window("overlay") {
         let _ = win.destroy();
     }
@@ -129,7 +138,7 @@ pub fn cancel_scrolling_selection(app: AppHandle) {
 /// `x/y/width/height` are physical screen coordinates.
 /// Returns immediately; a background thread performs the actual capture.
 #[tauri::command]
-pub fn start_scrolling_capture(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
+pub async fn start_scrolling_capture(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
     // Hide (not destroy) so the captured region doesn't show the overlay chrome.
     if let Some(win) = app.get_webview_window("overlay") {
         let _ = win.hide();
@@ -598,4 +607,101 @@ fn store_and_emit(app: AppHandle, img: RgbaImage) {
         serde_json::json!({"width": width, "height": height}),
     );
     crate::show_main_window(&app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const W: u32 = 400;
+
+    /// Unique RGBA pattern per document row index.
+    fn doc_row_pixel(row: u32) -> [u8; 4] {
+        [(row & 0xff) as u8, ((row >> 8) & 0xff) as u8, 137, 255]
+    }
+
+    /// Distinct pattern for sticky-footer rows.
+    fn footer_row_pixel(row: u32) -> [u8; 4] {
+        [13, (row & 0xff) as u8, 211, 255]
+    }
+
+    fn fill_row(img: &mut RgbaImage, y: u32, px: [u8; 4]) {
+        for x in 0..img.width() {
+            img.put_pixel(x, y, image::Rgba(px));
+        }
+    }
+
+    /// Viewport frame of a synthetic document at scroll `offset`, with an
+    /// optional sticky footer occupying the bottom `footer` rows.
+    fn frame(offset: u32, vh: u32, footer: u32) -> RgbaImage {
+        let mut img = RgbaImage::new(W, vh);
+        let content_rows = vh - footer;
+        for j in 0..content_rows {
+            fill_row(&mut img, j, doc_row_pixel(offset + j));
+        }
+        for j in 0..footer {
+            fill_row(&mut img, content_rows + j, footer_row_pixel(j));
+        }
+        img
+    }
+
+    fn run_stitch(offsets: &[u32], vh: u32, footer: u32) -> RgbaImage {
+        let mut state = StitchState {
+            best_match_count: 0,
+            best_match_index: 0,
+            best_ignore_bottom: 0,
+        };
+        let mut result = frame(offsets[0], vh, footer);
+        for &off in &offsets[1..] {
+            let cur = frame(off, vh, footer);
+            result = stitch(&result, &cur, &mut state)
+                .unwrap_or_else(|| panic!("stitch found no overlap at offset {off}"));
+        }
+        result
+    }
+
+    fn assert_rows(img: &RgbaImage, expect: impl Fn(u32) -> [u8; 4]) {
+        for y in 0..img.height() {
+            let got = img.get_pixel(W / 2, y).0;
+            let want = expect(y);
+            assert_eq!(got, want, "row {y} mismatch");
+        }
+    }
+
+    #[test]
+    fn stitch_no_footer_reconstructs_document() {
+        // 200-row viewport, 120-row scroll steps → 80 rows of overlap each time.
+        let offsets = [0, 120, 240, 360, 480, 600];
+        let out = run_stitch(&offsets, 200, 0);
+        assert_eq!(out.height(), 800);
+        assert_rows(&out, doc_row_pixel);
+    }
+
+    #[test]
+    fn stitch_skips_sticky_footer() {
+        // 40-row sticky footer on every frame; 160 content rows visible per frame.
+        let vh = 200;
+        let footer = 40;
+        let offsets = [0, 100, 200, 300, 400, 500, 600];
+        let out = run_stitch(&offsets, vh, footer);
+        // Content stream ends at 600 + 160; footer appears exactly once at the bottom.
+        let content_h = 600 + (vh - footer);
+        assert_eq!(out.height(), content_h + footer);
+        assert_rows(&out, |y| {
+            if y < content_h {
+                doc_row_pixel(y)
+            } else {
+                footer_row_pixel(y - content_h)
+            }
+        });
+    }
+
+    #[test]
+    fn stitch_uneven_final_step() {
+        // Page bottom: the last scroll moves less than the regular step.
+        let offsets = [0, 120, 240, 300];
+        let out = run_stitch(&offsets, 200, 0);
+        assert_eq!(out.height(), 500);
+        assert_rows(&out, doc_row_pixel);
+    }
 }
