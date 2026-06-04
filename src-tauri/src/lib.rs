@@ -52,7 +52,7 @@ pub fn run() {
             commands::set_settings,
             commands::open_save_folder,
             commands::hide_window,
-            commands::load_image_file,
+            commands::read_image_file,
             scrolling_capture::begin_scrolling_selection,
             scrolling_capture::cancel_scrolling_selection,
             scrolling_capture::start_scrolling_capture,

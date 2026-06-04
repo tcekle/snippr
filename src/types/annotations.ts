@@ -10,4 +10,5 @@ export type HighlightAnno = Base & { type:'highlight'; points:number[]; stroke:s
 export type TextAnno      = Base & { type:'text'; x:number; y:number; text:string; fontSize:number; fill:string };
 export type BadgeAnno     = Base & { type:'badge'; x:number; y:number; number:number; fill:string; radius:number };
 export type PixelateAnno  = Base & { type:'pixelate'; x:number; y:number; width:number; height:number; pixelSize:number };
-export type Annotation = RectAnno|EllipseAnno|ArrowAnno|LineAnno|PenAnno|HighlightAnno|TextAnno|BadgeAnno|PixelateAnno;
+export type ImageAnno     = Base & { type:'image'; x:number; y:number; width:number; height:number; imageEl:HTMLImageElement; src:string };
+export type Annotation = RectAnno|EllipseAnno|ArrowAnno|LineAnno|PenAnno|HighlightAnno|TextAnno|BadgeAnno|PixelateAnno|ImageAnno;

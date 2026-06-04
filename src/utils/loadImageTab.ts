@@ -1,18 +1,50 @@
+import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
 
-/** Decode an image blob and open it as a new editor tab. */
-export function addTabFromBlob(blob: Blob): Promise<void> {
+function decodeBlob(blob: Blob): Promise<{ url: string; img: HTMLImageElement }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const img = new Image();
-    img.onload = () => {
-      useEditorStore.getState().addTab(url, img.naturalWidth, img.naturalHeight, img);
-      resolve();
-    };
+    img.onload = () => resolve({ url, img });
     img.onerror = () => {
       URL.revokeObjectURL(url);
       reject(new Error('not a decodable image'));
     };
     img.src = url;
   });
+}
+
+/** Decode an image blob and open it as a new editor tab (background image). */
+export async function addTabFromBlob(blob: Blob): Promise<void> {
+  const { url, img } = await decodeBlob(blob);
+  useEditorStore.getState().addTab(url, img.naturalWidth, img.naturalHeight, img);
+}
+
+/** Import an image the user pasted or dropped: it becomes the background of a
+ * new tab when nothing is open, otherwise an image layer on the active doc. */
+export async function importImageBlob(blob: Blob): Promise<void> {
+  const s = useEditorStore.getState();
+  if (!s.screenshot.imageEl) return addTabFromBlob(blob);
+
+  const { url, img } = await decodeBlob(blob);
+  // Center on the background, scaled down to at most 80% of it.
+  const scale = Math.min(
+    1,
+    (s.screenshot.width * 0.8) / img.naturalWidth,
+    (s.screenshot.height * 0.8) / img.naturalHeight,
+  );
+  const width = Math.max(1, Math.round(img.naturalWidth * scale));
+  const height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const id = nanoid();
+  s.addAnnotation({
+    id,
+    type: 'image',
+    x: Math.round((s.screenshot.width - width) / 2),
+    y: Math.round((s.screenshot.height - height) / 2),
+    width,
+    height,
+    imageEl: img,
+    src: url,
+  });
+  s.selectAnnotation(id);
 }

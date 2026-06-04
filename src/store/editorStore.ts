@@ -203,6 +203,13 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
         : id === state.activeTabId ? state.screenshot.url : null;
       if (url) URL.revokeObjectURL(url);
 
+      // Release image-layer blobs too (history copies share the same URLs)
+      const annos = closing.doc ? closing.doc.annotations
+        : id === state.activeTabId ? state.annotations : [];
+      for (const a of annos) {
+        if (a.type === 'image') URL.revokeObjectURL(a.src);
+      }
+
       const tabs = state.tabs.filter((t) => t.id !== id);
       if (id !== state.activeTabId) return { tabs };
 

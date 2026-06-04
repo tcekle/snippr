@@ -4,7 +4,7 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation, RectAnno, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno } from '../types/annotations';
+import type { Annotation, RectAnno, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno } from '../types/annotations';
 import { RectShape } from './annotations/RectShape';
 import { EllipseShape } from './annotations/EllipseShape';
 import { ArrowShape } from './annotations/ArrowShape';
@@ -14,6 +14,7 @@ import { HighlightShape } from './annotations/HighlightShape';
 import { TextShape } from './annotations/TextShape';
 import { BadgeShape } from './annotations/BadgeShape';
 import { PixelateShape } from './annotations/PixelateShape';
+import { ImageShape } from './annotations/ImageShape';
 import { buildPixelateCanvas } from '../utils/buildPixelateCanvas';
 import { TextEditOverlay } from './TextEditOverlay';
 
@@ -321,7 +322,7 @@ export function EditorCanvas() {
     node.scaleX(1);
     node.scaleY(1);
 
-    if (anno.type === 'rect' || anno.type === 'pixelate') {
+    if (anno.type === 'rect' || anno.type === 'pixelate' || anno.type === 'image') {
       updateAnnotation(anno.id, {
         x: node.x(), y: node.y(),
         width: Math.max(2, (anno as RectAnno).width * sx),
@@ -390,6 +391,9 @@ export function EditorCanvas() {
         return <PixelateShape key={anno.id} anno={anno} imageEl={screenshot.imageEl} selected={sel}
           onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<PixelateAnno>, h)} />;
+      case 'image':
+        return <ImageShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
+          onChange={(p, h) => updateAnnotation(anno.id, p as Partial<ImageAnno>, h)} />;
       default:
         return null;
     }

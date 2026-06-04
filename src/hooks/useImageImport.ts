@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { addTabFromBlob } from '../utils/loadImageTab';
+import { importImageBlob } from '../utils/loadImageTab';
 import { showToast } from '../components/Toast';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|bmp|webp)$/i;
@@ -19,7 +19,7 @@ export function useImageImport() {
       const file = item?.getAsFile();
       if (!file) return;
       e.preventDefault();
-      addTabFromBlob(file).catch(() => showToast('Could not read pasted image', true));
+      importImageBlob(file).catch(() => showToast('Could not read pasted image', true));
     };
     document.addEventListener('paste', onPaste);
     return () => document.removeEventListener('paste', onPaste);
@@ -43,12 +43,13 @@ export function useImageImport() {
               showToast('Drop an image file (png, jpg, gif, bmp, webp)', true);
               return;
             }
-            // Sequential: each load stores into the single pending slot and the
-            // frontend drains it per snip-captured event before the next file.
+            // Sequential so the first file can become the background and the
+            // rest land as layers on top of it.
             void (async () => {
               for (const path of paths) {
                 try {
-                  await invoke('load_image_file', { path });
+                  const buf = await invoke<ArrayBuffer>('read_image_file', { path });
+                  await importImageBlob(new Blob([buf], { type: 'image/png' }));
                 } catch (err) {
                   showToast(String(err), true);
                 }

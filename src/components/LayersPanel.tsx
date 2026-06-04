@@ -12,6 +12,7 @@ function describe(anno: Annotation): string {
     case 'text':      return anno.text ? `“${anno.text}”` : 'Text';
     case 'badge':     return `Badge ${anno.number}`;
     case 'pixelate':  return 'Pixelate';
+    case 'image':     return 'Image';
   }
 }
 
@@ -139,6 +140,17 @@ function AnnotationPreview({ anno }: { anno: Annotation }) {
           ))}
         </svg>
       );
+    case 'image': {
+      const scale = Math.min((PV_W - 2 * PV_PAD) / Math.max(anno.width, 1), (PV_H - 2 * PV_PAD) / Math.max(anno.height, 1));
+      const w = Math.max(anno.width * scale, 2);
+      const h = Math.max(anno.height * scale, 2);
+      return (
+        <svg {...box}>
+          <image href={anno.src} x={(PV_W - w) / 2} y={(PV_H - h) / 2} width={w} height={h}
+            preserveAspectRatio="xMidYMid slice" />
+        </svg>
+      );
+    }
   }
 }
 
