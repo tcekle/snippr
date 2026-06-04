@@ -21,6 +21,7 @@ Ordinary copied images don't trigger the editor — snippr checks that the clipb
 ## Features
 
 - **Annotation tools** — line, rectangle, ellipse, arrow, freehand pen, highlighter, text, auto-numbered step badges
+- **Scrolling capture** — grab an entire scrollable page as one tall image (see below)
 - **Pixelate** — drag a region to censor API keys, emails, faces
 - **Crop** — non-destructive; adjust or remove it any time before export
 - **Tabs** — every snip opens its own tab with independent annotations and undo history
@@ -46,6 +47,21 @@ Each row renders a miniature of the actual shape — its real geometry and color
 </tr>
 </table>
 
+## Scrolling capture
+
+For content taller than the screen — long pages, chat logs, code files — snippr can capture the whole thing as a single image (the one capture the native Snipping Tool can't do):
+
+1. Click **Scrolling capture** in the top bar (or the tray menu)
+2. The screen dims — **drag a rectangle** over the scrollable content
+3. Hands off: snippr parks the cursor in the region, scrolls automatically, and captures frames every 300 ms
+4. It stops by itself at the bottom (or press `Esc` to stop early and keep what it has) — the stitched result opens as a new tab
+
+Frames are joined by matching pixel rows between captures, ignoring the side margins (scrollbars) and auto-detecting sticky footers so they appear only once. Tips:
+
+- Select **only the scrolling content** — exclude browser chrome and sticky headers when you can
+- Animated content (video, GIFs, carousels) breaks frame matching — leave it out of the region
+- Output height is capped at 16,000 px (canvas texture limit)
+
 ## Keyboard shortcuts
 
 | Key | Action |
@@ -67,6 +83,7 @@ Each row renders a miniature of the actual shape — its real geometry and color
 
 - **Open editor** — bring up the window (left-click does this too)
 - **Annotate clipboard image** — manually pull in whatever image is on the clipboard
+- **Scrolling capture** — capture a scrollable page as one tall image
 - **Pause watching** — stop reacting to snips
 - **Settings** — save directory, trigger-on-any-image, start with Windows
 - **Quit**
@@ -96,6 +113,7 @@ The installer is unsigned — SmartScreen will warn on first run (`More info →
 ## Architecture
 
 - **Backend (Rust / Tauri 2):** a Win32 message-only window registered with `AddClipboardFormatListener` watches the clipboard. New images are attributed via `GetClipboardOwner` → process name (`ScreenClippingHost.exe` / `SnippingTool.exe`), debounced (the Snipping Tool writes the clipboard once per format), PNG-encoded, and handed to the frontend over raw binary IPC. Exports flow back the same way; a feedback-loop guard keeps snippr's own clipboard writes from re-triggering the watcher.
+- **Scrolling capture:** a transparent always-on-top overlay window hosts the region selector; a Rust thread then drives the target with `SendInput` mouse-wheel events, grabs frames via GDI `BitBlt`, and stitches them with a row-matching algorithm ported from [ShareX](https://github.com/ShareX/ShareX)'s scrolling capture (side margins ignored, sticky footers deduplicated, stop on two identical frames). `Esc` is a thread-level `RegisterHotKey`. The stitcher is covered by unit tests against synthetic scroll sequences.
 - **Frontend (React 19 + Konva):** the screenshot is the bottom layer of a Konva stage; annotations are plain data rendered declaratively, with snapshot-based undo/redo in a zustand store. Export resets the stage transform and rasterizes at native resolution.
 
 ### README screenshots
