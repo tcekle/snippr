@@ -22,12 +22,14 @@ Ordinary copied images don't trigger the editor — snippr checks that the clipb
 
 - **Annotation tools** — line, rectangle, ellipse, arrow, freehand pen, highlighter, text, auto-numbered step badges
 - **Scrolling capture** — grab an entire scrollable page as one tall image (see below)
+- **Open existing images** — paste (`Ctrl+V`) or drag files in; with nothing open the image becomes the tab's background, with a document open it lands as a movable **image layer** on top
 - **Pixelate** — drag a region to censor API keys, emails, faces
 - **Crop** — non-destructive; adjust or remove it any time before export
 - **Tabs** — every snip opens its own tab with independent annotations and undo history
 - **Layers panel** — every annotation listed with a live geometry preview; click to select, double-click text to edit, `×` to delete
 - **Full undo/redo**, drag/resize via selection handles, drag anywhere inside the selection box
 - **Smart export bounds** — annotations placed outside the image grow the exported canvas instead of being clipped
+- **Design-tool canvas** — dot-grid backdrop that pans and zooms with the view (never baked into exports)
 - **Tray app** — starts with Windows (optional), single instance, close-to-tray
 
 <table>
@@ -70,6 +72,7 @@ Frames are joined by matching pixel rows between captures, ignoring the side mar
 | `V` | Select / move |
 | `E` `H` `B` `X` `C` | Ellipse, Highlighter, Badge, Pixelate, Crop |
 | `Ctrl+C` / `Ctrl+Enter` | Copy annotated image to clipboard |
+| `Ctrl+V` | Paste an image — new tab, or image layer when a doc is open |
 | `Ctrl+S` | Save As… |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Delete` | Delete selected annotation |
