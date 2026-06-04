@@ -6,18 +6,20 @@ interface ToolItem {
   tool: ToolType;
   label: string;
   hotkey: string;
+  /** Number-row shortcut for the most-used tools (also shown as a corner badge). */
+  num?: string;
   icon: React.ReactNode;
 }
 
 const TOOLS: ToolItem[] = [
   { tool: 'select', label: 'Select', hotkey: 'V', icon: <SelectIcon /> },
-  { tool: 'rect', label: 'Rectangle', hotkey: 'R', icon: <RectIcon /> },
+  { tool: 'rect', label: 'Rectangle', hotkey: 'R', num: '2', icon: <RectIcon /> },
   { tool: 'ellipse', label: 'Ellipse', hotkey: 'E', icon: <EllipseIcon /> },
-  { tool: 'arrow', label: 'Arrow', hotkey: 'A', icon: <ArrowIcon /> },
-  { tool: 'line', label: 'Line', hotkey: 'L', icon: <LineIcon /> },
-  { tool: 'pen', label: 'Pen', hotkey: 'P', icon: <PenIcon /> },
+  { tool: 'arrow', label: 'Arrow', hotkey: 'A', num: '3', icon: <ArrowIcon /> },
+  { tool: 'line', label: 'Line', hotkey: 'L', num: '1', icon: <LineIcon /> },
+  { tool: 'pen', label: 'Pen', hotkey: 'P', num: '5', icon: <PenIcon /> },
   { tool: 'highlight', label: 'Highlight', hotkey: 'H', icon: <HighlightIcon /> },
-  { tool: 'text', label: 'Text', hotkey: 'T', icon: <TextIcon /> },
+  { tool: 'text', label: 'Text', hotkey: 'T', num: '4', icon: <TextIcon /> },
   { tool: 'badge', label: 'Badge', hotkey: 'B', icon: <BadgeIcon /> },
   { tool: 'pixelate', label: 'Pixelate', hotkey: 'X', icon: <PixelateIcon /> },
   { tool: 'crop', label: 'Crop', hotkey: 'C', icon: <CropIcon /> },
@@ -48,10 +50,10 @@ export function ToolRail() {
 function ToolButton({ item, active, onClick }: { item: ToolItem; active: boolean; onClick: () => void }) {
   return (
     <button
-      title={`${item.label} (${item.hotkey})`}
+      title={`${item.label} (${item.num ? `${item.num} or ${item.hotkey}` : item.hotkey})`}
       onClick={onClick}
       style={{
-        width: 40, height: 40,
+        width: 40, height: 40, position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         border: 'none', borderRadius: 6, cursor: 'pointer',
         background: active ? 'var(--color-accent)' : 'transparent',
@@ -66,6 +68,15 @@ function ToolButton({ item, active, onClick }: { item: ToolItem; active: boolean
       }}
     >
       {item.icon}
+      {item.num && (
+        <span style={{
+          position: 'absolute', bottom: 2, right: 4,
+          fontSize: 9, lineHeight: 1, opacity: active ? 0.9 : 0.55,
+          fontWeight: 600,
+        }}>
+          {item.num}
+        </span>
+      )}
     </button>
   );
 }

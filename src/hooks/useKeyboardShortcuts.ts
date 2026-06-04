@@ -59,6 +59,8 @@ export function useKeyboardShortcuts(onExport: () => Promise<void>) {
       'v': 'select', 'r': 'rect', 'e': 'ellipse', 'a': 'arrow',
       'l': 'line', 'p': 'pen', 'h': 'highlight', 't': 'text',
       'b': 'badge', 'x': 'pixelate', 'c': 'crop',
+      // Number row for the most-used tools
+      '1': 'line', '2': 'rect', '3': 'arrow', '4': 'text', '5': 'pen',
     };
     if (!ctrl && toolMap[e.key.toLowerCase()]) {
       setTool(toolMap[e.key.toLowerCase()]);
