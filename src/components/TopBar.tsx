@@ -16,10 +16,6 @@ export function TopBar({ onCopy, onSave }: Props) {
       borderBottom: '1px solid var(--color-border)',
       gap: 12, flexShrink: 0,
     }}>
-      <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--color-text)', letterSpacing: -0.5 }}>
-        snippr
-      </span>
-
       {paused && (
         <span style={{
           background: '#f59e0b', color: '#000', fontSize: 11, fontWeight: 600,
