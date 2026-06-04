@@ -15,7 +15,6 @@ export function PropertiesPanel() {
   const [customOpen, setCustomOpen] = useState(() => !isPreset);
 
   const showFontSize = activeTool === 'text';
-  const showPixelSize = activeTool === 'pixelate';
 
   return (
     <div style={{
@@ -113,14 +112,17 @@ export function PropertiesPanel() {
         </div>
       )}
 
-      {showPixelSize && <PixelSizeControl />}
+      <PixelSizeControl />
+      <BadgeNumberControl />
     </div>
   );
 }
 
 function PixelSizeControl() {
-  const { selectedId, annotations, updateAnnotation } = useEditorStore();
+  const { selectedId, annotations, activeTool, updateAnnotation } = useEditorStore();
   const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  // Visible while using the tool, or whenever a pixelate region is selected
+  if (activeTool !== 'pixelate' && selected?.type !== 'pixelate') return null;
   const pixelSize = selected?.type === 'pixelate' ? selected.pixelSize : 12;
 
   return (
@@ -139,6 +141,52 @@ function PixelSizeControl() {
         <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 24 }}>{pixelSize}</span>
       </div>
     </div>
+  );
+}
+
+function BadgeNumberControl() {
+  const { selectedId, annotations, updateAnnotation } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  if (selected?.type !== 'badge') return null;
+
+  const setNumber = (n: number) => {
+    updateAnnotation(selected.id, { number: Math.max(1, Math.min(999, Math.round(n) || 1)) }, true);
+  };
+
+  return (
+    <div>
+      <Label>Badge Number</Label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <StepButton label="−" onClick={() => setNumber(selected.number - 1)} />
+        <input
+          type="number" min={1} max={999} value={selected.number}
+          onChange={(e) => setNumber(Number(e.target.value))}
+          style={{
+            flex: 1, minWidth: 0, textAlign: 'center',
+            background: 'var(--color-surface)', color: 'var(--color-text)',
+            border: '1px solid var(--color-border)', borderRadius: 4,
+            padding: '4px 6px', fontSize: 13, outline: 'none',
+          }}
+        />
+        <StepButton label="+" onClick={() => setNumber(selected.number + 1)} />
+      </div>
+    </div>
+  );
+}
+
+function StepButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: 26, height: 26, flexShrink: 0,
+        background: 'var(--color-surface)', color: 'var(--color-text)',
+        border: '1px solid var(--color-border)', borderRadius: 4,
+        cursor: 'pointer', fontSize: 14, lineHeight: 1,
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

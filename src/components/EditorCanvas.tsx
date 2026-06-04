@@ -43,7 +43,7 @@ export function EditorCanvas() {
   const store = useEditorStore();
   const {
     screenshot, annotations, selectedId, activeTool, strokeColor, strokeWidth, fontSize,
-    nextBadge, editingTextId, view, cropRect, fitNonce,
+    editingTextId, view, cropRect, fitNonce,
     addAnnotation, updateAnnotation, setSelectedId, setEditingTextId,
     setView, setCropRect, setStageRef,
   } = store;
@@ -134,10 +134,14 @@ export function EditorCanvas() {
     if (activeTool === 'text') return;
 
     if (activeTool === 'badge') {
+      // Number = highest existing badge + 1, so deleting or undoing the last
+      // badge frees its number for the next one.
+      const annos = useEditorStore.getState().annotations;
+      const next = annos.reduce((m, a) => (a.type === 'badge' ? Math.max(m, a.number) : m), 0) + 1;
       const anno: BadgeAnno = {
         id: nanoid(), type: 'badge',
         x: pos.x, y: pos.y,
-        number: nextBadge,
+        number: next,
         fill: strokeColor,
         radius: 16,
       };
@@ -162,7 +166,7 @@ export function EditorCanvas() {
     } else if (activeTool === 'crop') {
       setInProgress({ type: 'rect', x: pos.x, y: pos.y, width: 0, height: 0 });
     }
-  }, [activeTool, view, strokeColor, fontSize, nextBadge, addAnnotation, setSelectedId, setEditingTextId, getPointerPos]);
+  }, [activeTool, view, strokeColor, fontSize, addAnnotation, setSelectedId, setEditingTextId, getPointerPos]);
 
   const handlePointerMove = useCallback((e: KonvaEventObject<PointerEvent>) => {
     if (isPanning.current) {

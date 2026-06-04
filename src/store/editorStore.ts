@@ -36,7 +36,6 @@ interface DocSnapshot {
   history: HistoryEntry[];
   future: HistoryEntry[];
   cropRect: { x: number; y: number; width: number; height: number } | null;
-  nextBadge: number;
   view: ViewState;
 }
 
@@ -53,7 +52,6 @@ const EMPTY_DOC = {
   history: [] as HistoryEntry[],
   future: [] as HistoryEntry[],
   cropRect: null as DocSnapshot['cropRect'],
-  nextBadge: 1,
   selectedId: null as string | null,
   editingTextId: null as string | null,
 };
@@ -65,7 +63,6 @@ function snapshotActive(state: EditorState): DocSnapshot {
     history: state.history,
     future: state.future,
     cropRect: state.cropRect,
-    nextBadge: state.nextBadge,
     view: state.view,
   };
 }
@@ -89,7 +86,6 @@ interface EditorState {
   strokeColor: string;
   strokeWidth: number;
   fontSize: number;
-  nextBadge: number;
   editingTextId: string | null;
   view: ViewState;
   paused: boolean;
@@ -152,7 +148,6 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   strokeColor: '#ff3b30',
   strokeWidth: 4,
   fontSize: 24,
-  nextBadge: 1,
   editingTextId: null,
   view: { scale: 1, x: 0, y: 0 },
   paused: false,
