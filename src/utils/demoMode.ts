@@ -146,6 +146,7 @@ export async function maybeLoadDemo(): Promise<void> {
   s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 140, number: 1, fill: red, radius: 16 });
   s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 176, number: 2, fill: red, radius: 16 });
   s.addAnnotation({ id: nanoid(), type: 'highlight', points: [282, 196, 660, 196], stroke: '#ffe600', strokeWidth: 4 });
+  s.addAnnotation({ id: nanoid(), type: 'shape', shape: 'star', x: 664, y: 160, width: 60, height: 60, stroke: '#ffcc00', strokeWidth: 4 });
   s.addAnnotation({ id: nanoid(), type: 'pixelate', x: 278, y: 412, width: 330, height: 28, pixelSize: 10 });
   s.setSelectedId(null);
 }

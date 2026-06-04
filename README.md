@@ -20,7 +20,9 @@ Ordinary copied images don't trigger the editor — snippr checks that the clipb
 
 ## Features
 
-- **Annotation tools** — line, rectangle, ellipse, arrow, freehand pen, highlighter, text, auto-numbered step badges
+- **Annotation tools** — line, rectangle, ellipse, triangle, diamond, star, arrow, freehand pen, highlighter, text, auto-numbered step badges (numbers editable in the properties panel)
+- **Photoshop-style tool flyout** — hold or right-click the shape button to pick its variants; the button remembers your last choice (the corner caret marks grouped tools)
+- **Color presets** — the usual palette one click away; the last swatch unfolds the full picker with a hex input
 - **Scrolling capture** — grab an entire scrollable page as one tall image (see below)
 - **Open existing images** — paste (`Ctrl+V`) or drag files in; with nothing open the image becomes the tab's background, with a document open it lands as a movable **image layer** on top
 - **Pixelate** — drag a region to censor API keys, emails, faces
