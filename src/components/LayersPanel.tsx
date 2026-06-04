@@ -1,9 +1,11 @@
 import { useEditorStore } from '../store/editorStore';
 import type { Annotation } from '../types/annotations';
+import { shapePoints } from '../utils/shapeGeometry';
 
 function describe(anno: Annotation): string {
   switch (anno.type) {
     case 'rect':      return 'Rectangle';
+    case 'shape':     return anno.shape.charAt(0).toUpperCase() + anno.shape.slice(1);
     case 'ellipse':   return 'Ellipse';
     case 'arrow':     return 'Arrow';
     case 'line':      return 'Line';
@@ -73,6 +75,13 @@ function AnnotationPreview({ anno }: { anno: Annotation }) {
         </svg>
       );
     }
+    case 'shape':
+      return (
+        <svg {...box}>
+          <polygon points={toPolyline(fitPoints(shapePoints(anno.shape, Math.max(anno.width, 1), Math.max(anno.height, 1))))}
+            stroke={anno.stroke} strokeWidth={1.5} fill="none" strokeLinejoin="round" />
+        </svg>
+      );
     case 'ellipse': {
       const scale = Math.min((PV_W - 2 * PV_PAD) / Math.max(anno.radiusX * 2, 1), (PV_H - 2 * PV_PAD) / Math.max(anno.radiusY * 2, 1));
       return (

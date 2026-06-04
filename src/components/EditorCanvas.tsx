@@ -4,8 +4,10 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation, RectAnno, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno } from '../types/annotations';
+import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno } from '../types/annotations';
+import { shapePoints, isShapeTool } from '../utils/shapeGeometry';
 import { RectShape } from './annotations/RectShape';
+import { PolyShape } from './annotations/PolyShape';
 import { EllipseShape } from './annotations/EllipseShape';
 import { ArrowShape } from './annotations/ArrowShape';
 import { LineShape } from './annotations/LineShape';
@@ -20,6 +22,7 @@ import { TextEditOverlay } from './TextEditOverlay';
 
 type InProgress =
   | { type: 'rect' | 'pixelate'; x: number; y: number; width: number; height: number }
+  | { type: 'shape'; shape: ShapeKind; x: number; y: number; width: number; height: number }
   | { type: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number }
   | { type: 'arrow' | 'line'; points: number[] }
   | { type: 'pen' | 'highlight'; points: number[] }
@@ -148,6 +151,8 @@ export function EditorCanvas() {
 
     if (activeTool === 'rect' || activeTool === 'pixelate') {
       setInProgress({ type: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
+    } else if (isShapeTool(activeTool)) {
+      setInProgress({ type: 'shape', shape: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
     } else if (activeTool === 'ellipse') {
       setInProgress({ type: 'ellipse', x: pos.x, y: pos.y, radiusX: 0, radiusY: 0 });
     } else if (activeTool === 'arrow' || activeTool === 'line') {
@@ -170,9 +175,9 @@ export function EditorCanvas() {
     if (!isDrawing.current || !inProgress) return;
     const pos = getPointerPos();
 
-    if (inProgress.type === 'rect' || inProgress.type === 'pixelate') {
+    if (inProgress.type === 'rect' || inProgress.type === 'pixelate' || inProgress.type === 'shape') {
       setInProgress({
-        type: inProgress.type,
+        ...inProgress,
         x: Math.min(pos.x, dragStartPos.current.x),
         y: Math.min(pos.y, dragStartPos.current.y),
         width: Math.abs(pos.x - dragStartPos.current.x),
@@ -231,6 +236,13 @@ export function EditorCanvas() {
         width: inProgress.width, height: inProgress.height,
         stroke: strokeColor, strokeWidth,
       } satisfies RectAnno;
+    } else if (inProgress.type === 'shape' && inProgress.width > 2 && inProgress.height > 2) {
+      committed = {
+        id: nanoid(), type: 'shape', shape: inProgress.shape,
+        x: inProgress.x, y: inProgress.y,
+        width: inProgress.width, height: inProgress.height,
+        stroke: strokeColor, strokeWidth,
+      } satisfies ShapeAnno;
     } else if (activeTool === 'ellipse' && inProgress.type === 'ellipse' && inProgress.radiusX > 1) {
       committed = {
         id: nanoid(), type: 'ellipse',
@@ -330,7 +342,7 @@ export function EditorCanvas() {
     node.scaleX(1);
     node.scaleY(1);
 
-    if (anno.type === 'rect' || anno.type === 'pixelate' || anno.type === 'image') {
+    if (anno.type === 'rect' || anno.type === 'shape' || anno.type === 'pixelate' || anno.type === 'image') {
       updateAnnotation(anno.id, {
         x: node.x(), y: node.y(),
         width: Math.max(2, (anno as RectAnno).width * sx),
@@ -371,6 +383,9 @@ export function EditorCanvas() {
       case 'rect':
         return <RectShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<RectAnno>, h)} />;
+      case 'shape':
+        return <PolyShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
+          onChange={(p, h) => updateAnnotation(anno.id, p as Partial<ShapeAnno>, h)} />;
       case 'ellipse':
         return <EllipseShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<EllipseAnno>, h)} />;
@@ -539,6 +554,17 @@ export function EditorCanvas() {
                   stroke={strokeColor} strokeWidth={strokeWidth} fill="transparent"
                 />
               )}
+              {(inProgress.type === 'shape') && (() => {
+                const ip = inProgress as { type: 'shape'; shape: ShapeKind; x: number; y: number; width: number; height: number };
+                return (
+                  <Line
+                    x={ip.x} y={ip.y}
+                    points={shapePoints(ip.shape, ip.width, ip.height)}
+                    closed lineJoin="round"
+                    stroke={strokeColor} strokeWidth={strokeWidth} fill="transparent"
+                  />
+                );
+              })()}
               {(inProgress.type === 'pixelate') && screenshot.imageEl && (() => {
                 const ip = inProgress as { type: 'pixelate'; x: number; y: number; width: number; height: number };
                 if (ip.width <= 0 || ip.height <= 0) return null;
