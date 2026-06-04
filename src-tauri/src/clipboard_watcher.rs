@@ -117,6 +117,20 @@ fn on_clipboard_update(app: &AppHandle) {
         return;
     }
 
+    // One snip raises several WM_CLIPBOARDUPDATEs (one per format write);
+    // accept the first and swallow the echoes.
+    {
+        let mut last = state.last_trigger.lock().unwrap();
+        let now = std::time::Instant::now();
+        if let Some(t) = *last {
+            if now.duration_since(t) < Duration::from_millis(400) {
+                log::debug!("clipboard_watcher: debounced duplicate update");
+                return;
+            }
+        }
+        *last = Some(now);
+    }
+
     let app = app.clone();
     thread::spawn(move || capture_pending(app));
 }

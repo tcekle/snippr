@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
+use std::time::Instant;
 
 /// Screenshot captured from the clipboard, waiting for the frontend to pull it.
 pub struct PendingImage {
@@ -21,4 +22,7 @@ pub struct AppState {
     pub paused: AtomicBool,
     /// Slot the watcher fills and `get_pending_image` drains.
     pub pending: Mutex<Option<PendingImage>>,
+    /// Snipping Tool fires WM_CLIPBOARDUPDATE more than once per snip
+    /// (one per clipboard format write); debounce window keyed off this.
+    pub last_trigger: Mutex<Option<Instant>>,
 }
