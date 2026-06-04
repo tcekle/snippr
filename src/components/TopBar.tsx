@@ -62,6 +62,20 @@ export function TopBar({ onCopy, onSave }: Props) {
       )}
 
       <button
+        onClick={() => invoke('begin_scrolling_selection').catch(console.error)}
+        title="Scrolling capture"
+        style={{
+          background: 'transparent', color: 'var(--color-text)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 6, padding: '5px 14px', fontSize: 13, fontWeight: 600,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        <ScrollCaptureIcon />
+        Scrolling capture
+      </button>
+
+      <button
         onClick={() => invoke('open_save_folder').catch(console.error)}
         title="Open save folder"
         style={{
@@ -115,6 +129,17 @@ function GearIcon() {
       <circle cx="9" cy="9" r="3" stroke="currentColor" strokeWidth="1.5" />
       <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.22 3.22l1.42 1.42M13.36 13.36l1.42 1.42M3.22 14.78l1.42-1.42M13.36 4.64l1.42-1.42"
         stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ScrollCaptureIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      {/* Outer rectangle representing the selection region */}
+      <rect x="1.5" y="1.5" width="13" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      {/* Downward arrow through the bottom, representing scrolling */}
+      <path d="M8 8v5.5M5.5 11l2.5 2.5 2.5-2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

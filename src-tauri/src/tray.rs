@@ -16,6 +16,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
 
     let open = MenuItem::with_id(handle, "open", "Open editor", true, None::<&str>)?;
     let annotate = MenuItem::with_id(handle, "annotate", "Annotate clipboard image", true, None::<&str>)?;
+    let scroll = MenuItem::with_id(handle, "scroll", "Scrolling capture", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(handle, "pause", "Pause watching", true, false, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(handle)?;
     let settings_item = MenuItem::with_id(handle, "settings", "Settings", true, None::<&str>)?;
@@ -25,6 +26,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
     let menu = Menu::with_items(handle, &[
         &open,
         &annotate,
+        &scroll,
         &pause,
         &sep1,
         &settings_item,
@@ -49,6 +51,9 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
                         std::thread::spawn(move || {
                             crate::clipboard_watcher::capture_pending(app);
                         });
+                    }
+                    "scroll" => {
+                        crate::scrolling_capture::begin_selection(app);
                     }
                     "pause" => {
                         // CheckMenuItem auto-toggles; read the new state.

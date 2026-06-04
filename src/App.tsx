@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { useEditorStore } from './store/editorStore';
 import { useScreenshot } from './hooks/useScreenshot';
 import { useWatcherState } from './hooks/useWatcherState';
@@ -21,6 +22,16 @@ function App() {
   useScreenshot();
   useWatcherState();
   useSettingsListener();
+
+  // Listen for scrolling capture errors emitted by the Rust side
+  useEffect(() => {
+    const unlisten = listen<{ message: string }>('scroll-capture-error', (event) => {
+      showToast(event.payload.message, true);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
 
   // README screenshot helper — only in dev, only with ?demo=1
   useEffect(() => {
