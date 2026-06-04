@@ -12,11 +12,11 @@ interface ToolItem {
 }
 
 const TOOLS: ToolItem[] = [
-  { tool: 'select', label: 'Select', hotkey: 'V', icon: <SelectIcon /> },
+  { tool: 'select', label: 'Select', hotkey: 'A', icon: <SelectIcon /> },
   // Number-row tools in badge order
   { tool: 'line', label: 'Line', hotkey: 'L', num: '1', icon: <LineIcon /> },
   { tool: 'rect', label: 'Rectangle', hotkey: 'R', num: '2', icon: <RectIcon /> },
-  { tool: 'arrow', label: 'Arrow', hotkey: 'A', num: '3', icon: <ArrowIcon /> },
+  { tool: 'arrow', label: 'Arrow', hotkey: '3', num: '3', icon: <ArrowIcon /> },
   { tool: 'text', label: 'Text', hotkey: 'T', num: '4', icon: <TextIcon /> },
   { tool: 'pen', label: 'Pen', hotkey: 'P', num: '5', icon: <PenIcon /> },
   // Remaining tools
@@ -52,7 +52,7 @@ export function ToolRail() {
 function ToolButton({ item, active, onClick }: { item: ToolItem; active: boolean; onClick: () => void }) {
   return (
     <button
-      title={`${item.label} (${item.num ? `${item.num} or ${item.hotkey}` : item.hotkey})`}
+      title={`${item.label} (${item.num && item.num !== item.hotkey ? `${item.num} or ${item.hotkey}` : item.hotkey})`}
       onClick={onClick}
       style={{
         width: 40, height: 40, position: 'relative',
