@@ -12,7 +12,7 @@ interface ToolItem {
 }
 
 const TOOLS: ToolItem[] = [
-  { tool: 'select', label: 'Select', hotkey: 'A', icon: <SelectIcon /> },
+  { tool: 'select', label: 'Select', hotkey: 'V', icon: <SelectIcon /> },
   // Number-row tools in badge order
   { tool: 'line', label: 'Line', hotkey: 'L', num: '1', icon: <LineIcon /> },
   { tool: 'rect', label: 'Rectangle', hotkey: 'R', num: '2', icon: <RectIcon /> },
@@ -70,15 +70,14 @@ function ToolButton({ item, active, onClick }: { item: ToolItem; active: boolean
       }}
     >
       {item.icon}
-      {item.num && (
-        <span style={{
-          position: 'absolute', bottom: 2, right: 4,
-          fontSize: 9, lineHeight: 1, opacity: active ? 0.9 : 0.55,
-          fontWeight: 600,
-        }}>
-          {item.num}
-        </span>
-      )}
+      {/* Shortcut label: number-row key if assigned, else the letter key */}
+      <span style={{
+        position: 'absolute', bottom: 2, right: 4,
+        fontSize: 9, lineHeight: 1, opacity: active ? 0.9 : 0.55,
+        fontWeight: 600,
+      }}>
+        {item.num ?? item.hotkey}
+      </span>
     </button>
   );
 }

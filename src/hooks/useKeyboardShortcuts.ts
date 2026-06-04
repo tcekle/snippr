@@ -73,7 +73,7 @@ export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => 
     }
 
     const toolMap: Record<string, ToolType> = {
-      'a': 'select', 'v': 'select', 'r': 'rect', 'e': 'ellipse',
+      'v': 'select', 'r': 'rect', 'e': 'ellipse',
       'l': 'line', 'p': 'pen', 'h': 'highlight', 't': 'text',
       'b': 'badge', 'x': 'pixelate', 'c': 'crop',
       // Number row for the most-used tools (arrow lives on 3 only)
