@@ -11,6 +11,16 @@ type Fps = 10 | 20 | 30;
 const FPS_OPTIONS: Fps[] = [10, 20, 30];
 const FPS_KEY = 'snippr.recordFps';
 
+type Format = 'mp4' | 'gif';
+const FORMAT_OPTIONS: Format[] = ['mp4', 'gif'];
+const FORMAT_KEY = 'snippr.recordFormat';
+
+// Small uppercase section label — mirrors PropertiesPanel's Label treatment.
+const SECTION_LABEL_STYLE = {
+  color: 'var(--color-text-muted)', fontSize: 11, textTransform: 'uppercase',
+  letterSpacing: 0.8, padding: '4px 10px 2px',
+} as const;
+
 function loadFps(): Fps {
   try {
     const v = Number(localStorage.getItem(FPS_KEY));
@@ -19,9 +29,18 @@ function loadFps(): Fps {
   return 20;
 }
 
+function loadFormat(): Format {
+  try {
+    const v = localStorage.getItem(FORMAT_KEY);
+    if (FORMAT_OPTIONS.includes(v as Format)) return v as Format;
+  } catch { /* localStorage unavailable */ }
+  return 'mp4';
+}
+
 export function TopBar({ onCopy, onSave }: Props) {
   const { paused, setSettingsOpen, screenshot } = useEditorStore();
   const [fps, setFps] = useState<Fps>(loadFps);
+  const [format, setFormat] = useState<Format>(loadFormat);
   const [fpsOpen, setFpsOpen] = useState(false);
   const recordGroupRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +48,11 @@ export function TopBar({ onCopy, onSave }: Props) {
   useEffect(() => {
     try { localStorage.setItem(FPS_KEY, String(fps)); } catch { /* ignore */ }
   }, [fps]);
+
+  // Persist format choice
+  useEffect(() => {
+    try { localStorage.setItem(FORMAT_KEY, format); } catch { /* ignore */ }
+  }, [format]);
 
   // Close fps popover on outside click / Esc
   useEffect(() => {
@@ -110,8 +134,8 @@ export function TopBar({ onCopy, onSave }: Props) {
       {/* Record button + fps picker caret share one bordered group */}
       <div ref={recordGroupRef} style={{ position: 'relative', display: 'flex' }}>
         <button
-          onClick={() => invoke('begin_recording_selection', { fps }).catch(console.error)}
-          title={`Record a screen region as MP4 (${fps} fps)`}
+          onClick={() => invoke('begin_recording_selection', { fps, format }).catch(console.error)}
+          title={`Record a screen region (${format.toUpperCase()}, ${fps} fps)`}
           style={{
             background: 'transparent', color: 'var(--color-text)',
             border: '1px solid var(--color-border)', borderRight: 'none',
@@ -137,10 +161,42 @@ export function TopBar({ onCopy, onSave }: Props) {
         {fpsOpen && (
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 1500,
-            display: 'flex', flexDirection: 'column', gap: 2, minWidth: 96,
+            display: 'flex', flexDirection: 'column', gap: 2, minWidth: 160,
             background: 'var(--color-elevated)', border: '1px solid var(--color-border)',
             borderRadius: 6, padding: 4, boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
           }}>
+            {/* Format section — picking a format updates state only, doesn't close or record */}
+            <div style={SECTION_LABEL_STYLE}>Format</div>
+            {FORMAT_OPTIONS.map((opt) => {
+              const active = opt === format;
+              return (
+                <button
+                  key={opt}
+                  onClick={() => setFormat(opt)}
+                  style={{
+                    border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 13,
+                    fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                    background: active ? 'var(--color-accent)' : 'transparent',
+                    color: active ? '#fff' : 'var(--color-text)',
+                  }}
+                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
+                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div>{opt.toUpperCase()}</div>
+                  {opt === 'gif' && (
+                    <div style={{
+                      fontSize: 11, fontWeight: 400,
+                      color: active ? 'rgba(255,255,255,0.8)' : 'var(--color-text-muted)',
+                    }}>
+                      also saves the .mp4
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Frame rate section — keep existing close-on-pick behavior */}
+            <div style={{ ...SECTION_LABEL_STYLE, marginTop: 6 }}>Frame rate</div>
             {FPS_OPTIONS.map((opt) => {
               const active = opt === fps;
               return (

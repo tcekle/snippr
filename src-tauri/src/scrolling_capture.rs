@@ -277,7 +277,13 @@ fn snapshot_session(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
 /// We pass zero-value handle sentinels rather than Option<HDC> because in a
 /// mixed windows@0.58/0.61 dependency graph the Param<HDC> trait impl for
 /// Option conflicts between the two windows_core versions.
-unsafe fn capture_screen_rect_raw(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<u8>> {
+unsafe fn capture_screen_rect_raw(
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    with_cursor: bool,
+) -> Option<Vec<u8>> {
     let w_i = w as i32;
     let h_i = h as i32;
 
@@ -332,6 +338,12 @@ unsafe fn capture_screen_rect_raw(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<
         SRCCOPY | CAPTUREBLT,
     );
 
+    // GDI BitBlt never includes the pointer; for video we draw it on top of the
+    // freshly-blitted frame, in the DC's coordinate space (origin = region x/y).
+    if blt_ok.is_ok() && with_cursor {
+        crate::cursor::draw_cursor_into_dc(mem_dc, x, y);
+    }
+
     let bytes = if blt_ok.is_ok() {
         // bits_ptr is a 32bpp BGRA buffer, top-down.
         let byte_count = (w * h * 4) as usize;
@@ -353,7 +365,7 @@ unsafe fn capture_screen_rect_raw(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<
 /// Capture a rectangle of the screen (physical coords) into an `RgbaImage`,
 /// converting GDI's native BGRA to the RGBA order `image` expects.
 unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImage> {
-    let mut buf = capture_screen_rect_raw(x, y, w, h)?;
+    let mut buf = capture_screen_rect_raw(x, y, w, h, false)?;
     // Convert BGRA → RGBA in place.
     for chunk in buf.chunks_exact_mut(4) {
         chunk.swap(0, 2); // B↔R
@@ -365,7 +377,18 @@ unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImag
 /// 32bpp BGRA buffer for the video encoder. No channel swap (MF RGB32 == BGRA),
 /// which is both cheaper and the orientation/order the SinkWriter wants.
 pub(crate) unsafe fn capture_screen_rect_bgra(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<u8>> {
-    capture_screen_rect_raw(x, y, w, h)
+    capture_screen_rect_raw(x, y, w, h, false)
+}
+
+/// Like `capture_screen_rect_bgra` but composites the live mouse cursor onto the
+/// frame — recordings should show the pointer (snapshot/scrolling capture don't).
+pub(crate) unsafe fn capture_screen_rect_bgra_cursor(
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+) -> Option<Vec<u8>> {
+    capture_screen_rect_raw(x, y, w, h, true)
 }
 
 // ── Stitch algorithm (ported from ShareX CombineImages) ─────────────────────

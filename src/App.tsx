@@ -37,8 +37,9 @@ function App() {
 
   // Recording lifecycle results from the Rust side
   useEffect(() => {
-    const unlistenSaved = listen<{ path: string }>('recording-saved', (event) => {
-      showToast(`Recording saved: ${event.payload.path}`);
+    const unlistenSaved = listen<{ path: string; gif?: string | null }>('recording-saved', (event) => {
+      const { path, gif } = event.payload;
+      showToast(gif ? `Recording saved: ${path} (+ GIF)` : `Recording saved: ${path}`);
     });
     const unlistenError = listen<{ message: string }>('recording-error', (event) => {
       showToast(event.payload.message, true);

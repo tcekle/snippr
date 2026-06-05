@@ -1,7 +1,9 @@
 
 mod clipboard_watcher;
 mod commands;
+mod cursor;
 mod export;
+mod gif_export;
 mod screen_recording;
 mod scrolling_capture;
 mod settings;

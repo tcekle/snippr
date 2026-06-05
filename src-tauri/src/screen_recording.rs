@@ -43,6 +43,13 @@ use crate::scrolling_capture;
 /// Label of the floating recording toolbar window.
 const TOOLBAR_LABEL: &str = "rec-toolbar";
 
+/// Label of the click-through outline window framing the capture region.
+const BORDER_LABEL: &str = "rec-border";
+
+/// Outline thickness in physical px. The border window is the region inflated by
+/// this on every side, so the ring sits just OUTSIDE the captured pixels.
+const BORDER_PX: i32 = 3;
+
 /// Toolbar size in *logical* pixels; scaled by the monitor's factor for the
 /// physical size/position we set after creation.
 const TOOLBAR_W_LOGICAL: f64 = 260.0;
@@ -77,6 +84,12 @@ static STOP_SIGNAL: AtomicU8 = AtomicU8::new(STOP_NONE);
 /// One of 10/20/30 after clamping.
 static TARGET_FPS: AtomicU32 = AtomicU32::new(30);
 
+/// Output format chosen at `begin_recording_selection`. 0 = MP4 only,
+/// 1 = MP4 + GIF (the GIF is transcoded from the finished MP4; both are kept).
+static RECORD_FORMAT: AtomicU8 = AtomicU8::new(FORMAT_MP4);
+const FORMAT_MP4: u8 = 0;
+const FORMAT_GIF: u8 = 1;
+
 // ── FPS clamp ────────────────────────────────────────────────────────────────
 
 /// Snap an arbitrary requested fps to the nearest supported rate (10/20/30).
@@ -95,9 +108,14 @@ fn clamp_fps(requested: u32) -> u32 {
 /// stashed for `start_recording` to read. async: it builds overlay webviews
 /// (see scrolling_capture — sync window creation deadlocks on Windows).
 #[tauri::command]
-pub async fn begin_recording_selection(app: AppHandle, fps: u32) {
+pub async fn begin_recording_selection(app: AppHandle, fps: u32, format: Option<String>) {
     let fps = clamp_fps(fps);
     TARGET_FPS.store(fps, Ordering::Relaxed);
+    let fmt = match format.as_deref() {
+        Some("gif") => FORMAT_GIF,
+        _ => FORMAT_MP4,
+    };
+    RECORD_FORMAT.store(fmt, Ordering::Relaxed);
     scrolling_capture::set_selection_mode(scrolling_capture::MODE_RECORDING);
     scrolling_capture::begin_selection(&app);
 }
@@ -138,9 +156,11 @@ pub async fn start_recording(app: AppHandle, x: i32, y: i32, width: u32, height:
 
     let fps = TARGET_FPS.load(Ordering::Relaxed);
 
-    // Build the floating toolbar HERE (async command) and position it relative
-    // to the region. Failure to create it is non-fatal — we still record.
+    // Build the floating toolbar and the region outline HERE (async command) and
+    // position them relative to the region. Failure to create either is
+    // non-fatal — we still record.
     create_toolbar(&app, x, y, width, height);
+    create_border(&app, x, y, width, height);
 
     let app_for_thread = app.clone();
     if let Err(e) = thread::Builder::new()
@@ -150,6 +170,7 @@ pub async fn start_recording(app: AppHandle, x: i32, y: i32, width: u32, height:
         log::error!("start_recording: failed to spawn recorder thread: {e}");
         RECORDING_ACTIVE.store(false, Ordering::SeqCst);
         destroy_toolbar(&app);
+        destroy_border(&app);
         let _ = app.emit_to(
             "main",
             "recording-error",
@@ -265,6 +286,57 @@ fn create_toolbar(app: &AppHandle, x: i32, y: i32, width: u32, height: u32) {
 /// Destroy the toolbar window if it exists. Safe to call when absent.
 fn destroy_toolbar(app: &AppHandle) {
     if let Some(win) = app.get_webview_window(TOOLBAR_LABEL) {
+        let _ = win.destroy();
+    }
+}
+
+/// Create the click-through outline that frames the capture region. The window
+/// is the region inflated by `BORDER_PX` on every side and positioned at
+/// (x-BORDER_PX, y-BORDER_PX); the React side (`RecBorder`) paints a 3px ring on
+/// the window's outer edge, so the ring lands just OUTSIDE the captured pixels
+/// and never appears in the recording. Transparent + ignore-cursor-events so it
+/// neither tints the capture nor blocks interaction with the app being recorded.
+fn create_border(app: &AppHandle, x: i32, y: i32, width: u32, height: u32) {
+    let win = WebviewWindowBuilder::new(app, BORDER_LABEL, WebviewUrl::App("index.html".into()))
+        .transparent(true)
+        .decorations(false)
+        .shadow(false)
+        .skip_taskbar(true)
+        .always_on_top(true)
+        .resizable(false)
+        .focused(false)
+        .visible(false)
+        .build();
+
+    let win = match win {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("recording: border build failed: {e}");
+            return;
+        }
+    };
+
+    // Click-through: events pass to the app underneath being recorded.
+    let _ = win.set_ignore_cursor_events(true);
+
+    let bx = x - BORDER_PX;
+    let by = y - BORDER_PX;
+    let bw = (width as i32 + BORDER_PX * 2).max(1) as u32;
+    let bh = (height as i32 + BORDER_PX * 2).max(1) as u32;
+    if let Err(e) = win.set_position(PhysicalPosition::new(bx, by)) {
+        log::error!("recording: border set_position failed: {e}");
+    }
+    if let Err(e) = win.set_size(PhysicalSize::new(bw, bh)) {
+        log::error!("recording: border set_size failed: {e}");
+    }
+    if let Err(e) = win.show() {
+        log::error!("recording: border show failed: {e}");
+    }
+}
+
+/// Destroy the outline window if it exists. Safe to call when absent.
+fn destroy_border(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window(BORDER_LABEL) {
         let _ = win.destroy();
     }
 }
@@ -575,7 +647,7 @@ fn run_capture_loop(x: i32, y: i32, width: u32, height: u32, fps: u32) -> LoopRe
 
             // ── capture one frame (native BGRA, top-down) ──
             // SAFETY: enclosing `unsafe` block (the encode_frames call) covers this.
-            match scrolling_capture::capture_screen_rect_bgra(x, y, width, height) {
+            match scrolling_capture::capture_screen_rect_bgra_cursor(x, y, width, height) {
                 Some(buf) => Some((target, buf)),
                 None => {
                     log::error!("recording: capture_screen_rect_bgra failed; stopping");
@@ -636,6 +708,7 @@ fn finalize_to_save_dir(app: &AppHandle, temp_path: &PathBuf) -> Result<PathBuf,
 /// `result`: Ok(true) = save, Ok(false) = cancel/discard, Err(msg) = failure.
 fn finish(app: &AppHandle, result: Result<bool, String>, temp_path: Option<PathBuf>) {
     destroy_toolbar(app);
+    destroy_border(app);
 
     let outcome: Result<bool, String> = result;
     match outcome {
@@ -644,10 +717,29 @@ fn finish(app: &AppHandle, result: Result<bool, String>, temp_path: Option<PathB
             match temp_path.as_ref().map(|p| finalize_to_save_dir(app, p)) {
                 Some(Ok(final_path)) => {
                     let path_str = final_path.to_string_lossy().into_owned();
+                    // GIF requested: transcode the saved MP4 alongside it (both
+                    // kept). A GIF failure is non-fatal — the MP4 is already safe.
+                    let gif_str = if RECORD_FORMAT.load(Ordering::Relaxed) == FORMAT_GIF {
+                        let gif_path = final_path.with_extension("gif");
+                        let fps = TARGET_FPS.load(Ordering::Relaxed);
+                        match crate::gif_export::transcode_mp4_to_gif(
+                            &path_str,
+                            &gif_path.to_string_lossy(),
+                            fps,
+                        ) {
+                            Ok(()) => Some(gif_path.to_string_lossy().into_owned()),
+                            Err(e) => {
+                                log::error!("recording: GIF transcode failed: {e}");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
                     let _ = app.emit_to(
                         "main",
                         "recording-saved",
-                        serde_json::json!({ "path": path_str }),
+                        serde_json::json!({ "path": path_str, "gif": gif_str }),
                     );
                 }
                 Some(Err(e)) => {

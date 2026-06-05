@@ -3436,7 +3436,9 @@ version = "0.1.0"
 dependencies = [
  "arboard",
  "chrono",
+ "color_quant",
  "env_logger",
+ "gif",
  "image",
  "log",
  "serde",
