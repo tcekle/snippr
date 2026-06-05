@@ -14,18 +14,23 @@ export interface BackdropConfig {
   aspect: AspectMode;
 }
 
-export const BACKDROP_PRESETS: BackdropFill[] = [
-  { kind: 'gradient', from: '#ffd5a8', to: '#a78bfa', angle: 135 },
-  { kind: 'gradient', from: '#0ea5e9', to: '#6366f1', angle: 135 },
-  { kind: 'gradient', from: '#34d399', to: '#0ea5e9', angle: 135 },
-  { kind: 'solid',    color: '#1e1e28' },
-  { kind: 'solid',    color: '#f1f1f4' },
-  { kind: 'gradient', from: '#fb7185', to: '#f59e0b', angle: 135 },
+export interface BackdropPreset { label: string; fill: BackdropFill; }
+
+// Data I/O brand backdrops (from the corporate style guide).
+export const BACKDROP_PRESETS: BackdropPreset[] = [
+  { label: 'Navy',   fill: { kind: 'gradient', from: '#0A1628', to: '#054BAA', angle: 135 } }, // default
+  { label: 'Blue',   fill: { kind: 'gradient', from: '#054BAA', to: '#4A90D9', angle: 135 } },
+  { label: 'Teal',   fill: { kind: 'gradient', from: '#0891B2', to: '#4A90D9', angle: 135 } },
+  { label: 'Violet', fill: { kind: 'gradient', from: '#6D28D9', to: '#4A90D9', angle: 135 } },
+  { label: 'Dark',   fill: { kind: 'solid', color: '#0A1628' } },
+  { label: 'Tint',   fill: { kind: 'solid', color: '#E8F0FC' } },
+  { label: 'Paper',  fill: { kind: 'solid', color: '#F8F9FA' } },
+  { label: 'Amber',  fill: { kind: 'gradient', from: '#FEB034', to: '#B35D00', angle: 135 } },
 ];
 
 export const DEFAULT_BACKDROP: BackdropConfig = {
   padding: 64,
-  fill: BACKDROP_PRESETS[0],
+  fill: BACKDROP_PRESETS[0].fill,
   cornerRadius: 14,
   shadow: true,
   frame: 'browser',
