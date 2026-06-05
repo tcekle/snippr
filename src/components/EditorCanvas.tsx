@@ -489,7 +489,7 @@ export function EditorCanvas() {
       default:
         return null;
     }
-  }, [selectedId, activeTool, editingTextId, screenshot.imageEl, setSelectedId, setEditingTextId, updateAnnotation]);
+  }, [selectedId, activeTool, editingTextId, screenshot.imageEl, screenshot.width, screenshot.height, setSelectedId, setEditingTextId, updateAnnotation]);
 
   const imgWidth = screenshot.width;
   const imgHeight = screenshot.height;
