@@ -25,6 +25,35 @@ export function useImageImport() {
     return () => document.removeEventListener('paste', onPaste);
   }, []);
 
+  // "Add screenshot" region capture: Rust parks the PNG in the pending slot
+  // and emits snapshot-captured; route it through the same import logic as
+  // paste/drop (image layer on the current doc, or a new tab's background).
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen('snapshot-captured', async () => {
+          try {
+            const buf = await invoke<ArrayBuffer>('get_pending_image');
+            if (buf.byteLength === 0) return;
+            await importImageBlob(new Blob([buf], { type: 'image/png' }));
+          } catch (err) {
+            showToast(String(err), true);
+          }
+        });
+        if (disposed) unlisten();
+      } catch {
+        /* plain-browser dev (README screenshots) — no Tauri */
+      }
+    })();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   // OS file drops arrive via Tauri's drag-drop event, not HTML5 drop events.
   useEffect(() => {
     let unlisten: (() => void) | undefined;

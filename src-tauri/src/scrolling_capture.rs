@@ -1,10 +1,13 @@
 
-//! Scrolling screenshot capture.
+//! Scrolling screenshot capture + single-region snapshot.
 //!
 //! Flow: tray → begin_selection (creates overlay) → frontend draws selection rect
 //! → start_scrolling_capture (spawns capture thread) → snip-captured event.
+//! Snapshot mode reuses the same overlay but takes one frame and emits
+//! snapshot-captured (added to the current document instead of a new tab).
 
 use std::io::Cursor;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -45,44 +48,68 @@ const MAX_OUTPUT_HEIGHT: u32 = 16_000;
 /// Initial sleep before first capture, giving the overlay time to hide.
 const START_DELAY_MS: u64 = 300;
 
+/// True when the overlay was opened for a single-region snapshot rather than
+/// a scrolling capture. The overlay frontend asks via `get_selection_mode`.
+static SNAPSHOT_MODE: AtomicBool = AtomicBool::new(false);
+
 // ── Overlay window ──────────────────────────────────────────────────────────
 
-/// Show the transparent overlay on the monitor under the cursor.
-/// Destroys any pre-existing overlay first, then creates a fresh one.
+/// Destroy every overlay window (one per monitor, labels `overlay-N`).
+fn destroy_overlays(app: &AppHandle) {
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay") {
+            let _ = win.destroy();
+        }
+    }
+}
+
+/// Hide every overlay window without destroying it (pre-capture).
+fn hide_overlays(app: &AppHandle) {
+    for (label, win) in app.webview_windows() {
+        if label.starts_with("overlay") {
+            let _ = win.hide();
+        }
+    }
+}
+
+/// Show a transparent overlay on EVERY monitor so the user can select a
+/// region anywhere. One window per monitor keeps the pointer math correct
+/// on mixed-DPI setups (each overlay uses its own scale factor).
 pub fn begin_selection(app: &AppHandle) {
     // Hide the editor so the overlay has a clean canvas.
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.hide();
     }
 
-    // Tear down any lingering overlay from a previous invocation.
-    if let Some(old) = app.get_webview_window("overlay") {
-        let _ = old.destroy();
+    // Tear down any lingering overlays from a previous invocation.
+    destroy_overlays(app);
+
+    let monitors = app.available_monitors().unwrap_or_default();
+    if monitors.is_empty() {
+        log::error!("scrolling_capture: no monitors found");
+        crate::show_main_window(app);
+        return;
     }
 
-    // Find the monitor under the cursor; fall back to primary.
-    let monitor = app
-        .cursor_position()
-        .ok()
-        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
+    // Focus follows the cursor: Esc should land on the overlay under it.
+    let cursor = app.cursor_position().ok();
 
-    let (mon_x, mon_y, mon_w, mon_h) = match monitor {
-        Some(m) => (
+    let mut created = 0;
+    for (i, m) in monitors.iter().enumerate() {
+        let (mon_x, mon_y, mon_w, mon_h) = (
             m.position().x,
             m.position().y,
             m.size().width,
             m.size().height,
-        ),
-        None => {
-            log::error!("scrolling_capture: cannot determine monitor");
-            return;
-        }
-    };
+        );
 
-    // Build the overlay window; position/size are set physically after creation
-    // to avoid DPI-scaling confusion in the builder (which uses logical units).
-    let win = WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("index.html".into()))
+        // Build the overlay window; position/size are set physically after
+        // creation to avoid DPI-scaling confusion in the builder (logical units).
+        let win = WebviewWindowBuilder::new(
+            app,
+            format!("overlay-{i}"),
+            WebviewUrl::App("index.html".into()),
+        )
         .transparent(true)
         .decorations(false)
         .shadow(false)
@@ -93,25 +120,40 @@ pub fn begin_selection(app: &AppHandle) {
         .focused(false)
         .build();
 
-    let win = match win {
-        Ok(w) => w,
-        Err(e) => {
-            log::error!("scrolling_capture: overlay build failed: {e}");
-            crate::show_main_window(app);
-            return;
-        }
-    };
+        let win = match win {
+            Ok(w) => w,
+            Err(e) => {
+                log::error!("scrolling_capture: overlay-{i} build failed: {e}");
+                continue;
+            }
+        };
 
-    if let Err(e) = win.set_position(PhysicalPosition::new(mon_x, mon_y)) {
-        log::error!("scrolling_capture: overlay set_position failed: {e}");
+        if let Err(e) = win.set_position(PhysicalPosition::new(mon_x, mon_y)) {
+            log::error!("scrolling_capture: overlay-{i} set_position failed: {e}");
+        }
+        if let Err(e) = win.set_size(PhysicalSize::new(mon_w, mon_h)) {
+            log::error!("scrolling_capture: overlay-{i} set_size failed: {e}");
+        }
+        if let Err(e) = win.show() {
+            log::error!("scrolling_capture: overlay-{i} show failed: {e}");
+        }
+        created += 1;
+
+        let under_cursor = cursor.is_some_and(|c| {
+            c.x >= mon_x as f64
+                && c.x < (mon_x + mon_w as i32) as f64
+                && c.y >= mon_y as f64
+                && c.y < (mon_y + mon_h as i32) as f64
+        });
+        if under_cursor || (i == 0 && cursor.is_none()) {
+            let _ = win.set_focus();
+        }
     }
-    if let Err(e) = win.set_size(PhysicalSize::new(mon_w, mon_h)) {
-        log::error!("scrolling_capture: overlay set_size failed: {e}");
+
+    if created == 0 {
+        log::error!("scrolling_capture: no overlay could be created");
+        crate::show_main_window(app);
     }
-    if let Err(e) = win.show() {
-        log::error!("scrolling_capture: overlay show failed: {e}");
-    }
-    let _ = win.set_focus();
 }
 
 // ── Commands ────────────────────────────────────────────────────────────────
@@ -122,15 +164,32 @@ pub fn begin_selection(app: &AppHandle) {
 /// command's IPC response).
 #[tauri::command]
 pub async fn begin_scrolling_selection(app: AppHandle) {
+    SNAPSHOT_MODE.store(false, Ordering::Relaxed);
     begin_selection(&app);
 }
 
-/// Cancel mid-selection: destroy overlay, restore main window.
+/// "Add another screenshot": same overlay, but a single frame is captured and
+/// added to the current document.
+#[tauri::command]
+pub async fn begin_snapshot_selection(app: AppHandle) {
+    SNAPSHOT_MODE.store(true, Ordering::Relaxed);
+    begin_selection(&app);
+}
+
+/// The overlay asks which flavour of selection it is hosting.
+#[tauri::command]
+pub fn get_selection_mode() -> &'static str {
+    if SNAPSHOT_MODE.load(Ordering::Relaxed) {
+        "snapshot"
+    } else {
+        "scrolling"
+    }
+}
+
+/// Cancel mid-selection: destroy all overlays, restore main window.
 #[tauri::command]
 pub async fn cancel_scrolling_selection(app: AppHandle) {
-    if let Some(win) = app.get_webview_window("overlay") {
-        let _ = win.destroy();
-    }
+    destroy_overlays(&app);
     crate::show_main_window(&app);
 }
 
@@ -140,14 +199,46 @@ pub async fn cancel_scrolling_selection(app: AppHandle) {
 #[tauri::command]
 pub async fn start_scrolling_capture(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
     // Hide (not destroy) so the captured region doesn't show the overlay chrome.
-    if let Some(win) = app.get_webview_window("overlay") {
-        let _ = win.hide();
-    }
+    hide_overlays(&app);
 
     thread::Builder::new()
         .name("snippr-scroll-capture".into())
         .spawn(move || capture_session(app, x, y, width, height))
         .expect("failed to spawn scroll capture thread");
+}
+
+/// Single-frame variant: capture the drawn region once and hand it to the
+/// frontend as `snapshot-captured` (becomes an image layer / background).
+#[tauri::command]
+pub async fn capture_snapshot(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
+    hide_overlays(&app);
+
+    thread::Builder::new()
+        .name("snippr-snapshot".into())
+        .spawn(move || snapshot_session(app, x, y, width, height))
+        .expect("failed to spawn snapshot thread");
+}
+
+fn snapshot_session(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
+    // Let the overlay finish hiding before capturing.
+    thread::sleep(Duration::from_millis(START_DELAY_MS));
+
+    let img = unsafe { capture_screen_rect(x, y, width, height) };
+
+    destroy_overlays(&app);
+
+    match img {
+        Some(img) => store_and_emit(app, img, "snapshot-captured"),
+        None => {
+            log::error!("snapshot: capture_screen_rect failed");
+            let _ = app.emit_to(
+                "main",
+                "scroll-capture-error",
+                serde_json::json!({"message": "Screen capture failed"}),
+            );
+            crate::show_main_window(&app);
+        }
+    }
 }
 
 // ── GDI screen capture helper ───────────────────────────────────────────────
@@ -528,13 +619,11 @@ fn capture_session(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
         }
     }
 
-    // Destroy overlay and show main window — mirrors the clipboard_watcher pattern.
-    if let Some(win) = app.get_webview_window("overlay") {
-        let _ = win.destroy();
-    }
+    // Destroy overlays and show main window — mirrors the clipboard_watcher pattern.
+    destroy_overlays(&app);
 
     match result {
-        Some(img) => store_and_emit(app, img),
+        Some(img) => store_and_emit(app, img, "snip-captured"),
         None => {
             log::error!("scroll capture: no frames captured");
             let _ = app.emit_to(
@@ -576,9 +665,9 @@ unsafe fn send_scroll(delta: i32) {
     SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
 }
 
-/// Encode the stitched image as PNG, store in pending slot, emit event, show main window.
+/// Encode the image as PNG, store in pending slot, emit `event`, show main window.
 /// Mirrors the tail of `clipboard_watcher::capture_pending` exactly.
-fn store_and_emit(app: AppHandle, img: RgbaImage) {
+fn store_and_emit(app: AppHandle, img: RgbaImage, event: &str) {
     let width = img.width();
     let height = img.height();
 
@@ -603,7 +692,7 @@ fn store_and_emit(app: AppHandle, img: RgbaImage) {
 
     let _ = app.emit_to(
         "main",
-        "snip-captured",
+        event,
         serde_json::json!({"width": width, "height": height}),
     );
     crate::show_main_window(&app);

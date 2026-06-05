@@ -15,6 +15,6 @@ try {
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {label === "overlay" ? <RegionSelector /> : <App />}
+    {label.startsWith("overlay") ? <RegionSelector /> : <App />}
   </React.StrictMode>,
 );

@@ -54,8 +54,11 @@ pub fn run() {
             commands::hide_window,
             commands::read_image_file,
             scrolling_capture::begin_scrolling_selection,
+            scrolling_capture::begin_snapshot_selection,
+            scrolling_capture::get_selection_mode,
             scrolling_capture::cancel_scrolling_selection,
             scrolling_capture::start_scrolling_capture,
+            scrolling_capture::capture_snapshot,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

@@ -24,7 +24,15 @@ export function RegionSelector() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [drag, setDrag] = useState<DragRect | null>(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
+  const [mode, setMode] = useState<'scrolling' | 'snapshot'>('scrolling');
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  // The same overlay hosts both capture flavours; Rust knows which one
+  useEffect(() => {
+    invoke<'scrolling' | 'snapshot'>('get_selection_mode')
+      .then(setMode)
+      .catch(console.error);
+  }, []);
 
   // Neutralize the dark background from index.css
   useEffect(() => {
@@ -87,9 +95,10 @@ export function RegionSelector() {
       const width = Math.max(1, Math.round(rect.width * sf));
       const height = Math.max(1, Math.round(rect.height * sf));
 
-      await invoke('start_scrolling_capture', { x, y, width, height });
+      const cmd = mode === 'snapshot' ? 'capture_snapshot' : 'start_scrolling_capture';
+      await invoke(cmd, { x, y, width, height });
     } catch (err) {
-      console.error('start_scrolling_capture failed', err);
+      console.error('capture command failed', err);
       // Rust side will also emit scroll-capture-error to main window
     }
   };
@@ -154,7 +163,9 @@ export function RegionSelector() {
           whiteSpace: 'nowrap',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
         }}>
-          Drag to select scroll area — Esc to cancel
+          {mode === 'snapshot'
+            ? 'Drag to capture a region — Esc to cancel'
+            : 'Drag to select scroll area — Esc to cancel'}
         </div>
       )}
 
@@ -213,7 +224,9 @@ export function RegionSelector() {
             border: '1px solid rgba(255,255,255,0.15)',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
           }}>
-            Capturing — scroll happens automatically, Esc to stop
+            {mode === 'snapshot'
+              ? 'Capturing…'
+              : 'Capturing — scroll happens automatically, Esc to stop'}
           </div>
         </div>
       )}
