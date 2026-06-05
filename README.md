@@ -78,7 +78,7 @@ Frames are joined by matching pixel rows between captures, ignoring the side mar
 | `Ctrl+S` | Save As… |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Delete` | Delete selected annotation |
-| `Esc` | Cancel draw → deselect → hide window |
+| `Esc` | Cancel draw → deselect (never hides the window) |
 | `Enter` | Confirm crop |
 | `Ctrl+Tab` / `Ctrl+W` | Next tab / close tab |
 | `Ctrl+0`, `Ctrl+=`, `Ctrl+-` | Fit, zoom in, zoom out |

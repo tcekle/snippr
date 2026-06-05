@@ -1,5 +1,4 @@
 import { useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
 import type { ToolType } from '../types/annotations';
 
@@ -53,10 +52,10 @@ export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => 
 
     if (e.key === 'Escape') {
       e.preventDefault();
+      // No hide-window fallthrough: mashing Esc must never close the app
       if (editingTextId) { setEditingTextId(null); return; }
       if (activeTool === 'crop' && cropRect) { setCropRect(null); return; }
       if (selectedId) { setSelectedId(null); return; }
-      invoke('hide_window').catch(console.error);
       return;
     }
 
