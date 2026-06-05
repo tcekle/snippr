@@ -164,8 +164,8 @@ export async function maybeLoadDemo(): Promise<void> {
   if (params.has('zoom')) {
     s.addAnnotation({
       id: nanoid(), type: 'loupe',
-      srcX: 580, srcY: 250, size: 90,
-      x: 720, y: 120, zoom: 2.6, shape: 'circle',
+      srcX: 500, srcY: 540, size: 120,
+      x: 404, y: 684, zoom: 2.6, shape: 'circle',
       borderColor: '#ffffff', borderWidth: 3,
       showSource: true, connector: true,
     });
