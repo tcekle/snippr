@@ -1,6 +1,6 @@
 /** Polygon variants living under the shape-tool flyout (rect/ellipse have their own anno types). */
 export type ShapeKind = 'triangle'|'diamond'|'star';
-export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|ShapeKind;
+export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|'spotlight'|ShapeKind;
 
 type Base = { id: string; };
 export type RectAnno      = Base & { type:'rect'; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
@@ -14,4 +14,5 @@ export type TextAnno      = Base & { type:'text'; x:number; y:number; text:strin
 export type BadgeAnno     = Base & { type:'badge'; x:number; y:number; number:number; fill:string; radius:number };
 export type PixelateAnno  = Base & { type:'pixelate'; x:number; y:number; width:number; height:number; pixelSize:number };
 export type ImageAnno     = Base & { type:'image'; x:number; y:number; width:number; height:number; imageEl:HTMLImageElement; src:string };
-export type Annotation = RectAnno|ShapeAnno|EllipseAnno|ArrowAnno|LineAnno|PenAnno|HighlightAnno|TextAnno|BadgeAnno|PixelateAnno|ImageAnno;
+export type SpotlightAnno = Base & { type:'spotlight'; x:number; y:number; width:number; height:number; shape:'rect'|'ellipse'; dim:number; feather:number; invert:boolean };
+export type Annotation = RectAnno|ShapeAnno|EllipseAnno|ArrowAnno|LineAnno|PenAnno|HighlightAnno|TextAnno|BadgeAnno|PixelateAnno|ImageAnno|SpotlightAnno;

@@ -39,6 +39,7 @@ const RAIL: RailEntry[] = [
   { variants: [{ tool: 'pixelate', label: 'Pixelate', hotkey: 'X', icon: <PixelateIcon /> }] },
   { variants: [{ tool: 'crop', label: 'Crop', hotkey: 'C', icon: <CropIcon /> }] },
   { variants: [{ tool: 'backdrop', label: 'Backdrop', hotkey: 'G', icon: <BackdropIcon /> }] },
+  { variants: [{ tool: 'spotlight', label: 'Spotlight', hotkey: 'O', icon: <SpotlightIcon /> }] },
 ];
 
 const LONG_PRESS_MS = 350;
@@ -403,6 +404,16 @@ function BackdropIcon() {
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <rect x="1.5" y="1.5" width="15" height="15" rx="3" stroke="currentColor" strokeWidth="1.3" opacity="0.5" />
       <rect x="5" y="5" width="8" height="8" rx="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SpotlightIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="9" r="3.4" fill="currentColor" />
+      <circle cx="9" cy="9" r="6.6" stroke="currentColor" strokeWidth="1.4" opacity="0.45" />
+      <path d="M9 1v1.6M9 15.4V17M1 9h1.6M15.4 9H17" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
