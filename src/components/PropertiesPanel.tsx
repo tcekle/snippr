@@ -381,32 +381,58 @@ function fillToCss(f: BackdropFill): string {
 
 function BackdropControls() {
   const { backdrop, activeTool, setBackdrop, removeBackdrop } = useEditorStore();
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customColor, setCustomColor] = useState('#6b7280');
   if (activeTool !== 'backdrop') return null;
   const b = backdrop ?? DEFAULT_BACKDROP;
+
+  const customSelected = !BACKDROP_PRESETS.some((p) => fillsEqual(b.fill, p.fill)) && b.fill.kind === 'solid';
 
   return (
     <>
       <div>
         <Label>Backdrop</Label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-          {BACKDROP_PRESETS.map((preset, i) => {
-            const selected = fillsEqual(b.fill, preset);
-            return (
-              <button
-                key={i}
-                onClick={() => setBackdrop({ fill: preset })}
-                title="Backdrop"
-                style={{
-                  width: '100%', aspectRatio: '1.3', borderRadius: 6,
-                  background: fillToCss(preset),
-                  border: selected ? '2px solid var(--color-accent)' : '2px solid transparent',
-                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)',
-                  cursor: 'pointer', padding: 0, outline: 'none',
-                }}
-              />
-            );
-          })}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {BACKDROP_PRESETS.map((p, i) => (
+            <button key={i} onClick={() => setBackdrop({ fill: p.fill })} title={p.label}
+              style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+              <div style={{
+                width: '100%', aspectRatio: '1.3', borderRadius: 6, background: fillToCss(p.fill),
+                border: fillsEqual(b.fill, p.fill) ? '2px solid var(--color-accent)' : '2px solid transparent',
+                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)',
+              }} />
+              <div style={{ fontSize: 8.5, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 3 }}>{p.label}</div>
+            </button>
+          ))}
+          {/* Custom solid-color tile */}
+          <button onClick={() => setCustomOpen(!customOpen)} title="Custom color…"
+            style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+            <div style={{
+              width: '100%', aspectRatio: '1.3', borderRadius: 6,
+              background: customSelected ? fillToCss(b.fill) : customColor,
+              border: (customSelected || customOpen) ? '2px solid var(--color-accent)' : '2px solid transparent',
+              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {!customSelected && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'conic-gradient(#ff3b30, #ffcc00, #34c759, #007aff, #af52de, #ff3b30)',
+                  opacity: 0.6,
+                }} />
+              )}
+            </div>
+            <div style={{ fontSize: 8.5, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 3 }}>Custom</div>
+          </button>
         </div>
+        {customOpen && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ borderRadius: 8, overflow: 'hidden' }}>
+              <HexColorPicker color={customColor} onChange={(c) => { setCustomColor(c); setBackdrop({ fill: { kind: 'solid', color: c } }); }} style={{ width: '100%' }} />
+            </div>
+          </div>
+        )}
+        <div style={{ fontSize: 10.5, color: 'var(--color-text-muted)', marginTop: 8 }}>Data I/O brand palette</div>
       </div>
 
       <div>
