@@ -6,18 +6,18 @@ import { backdropBounds } from './backdropGeometry';
 
 const CANVAS_BG = '#181818'; // matches the editor canvas background
 
-/** Base rect (image or board page) grown to cover annotations that spill past
- * its edges. Requires the stage transform to be reset to identity first. */
-function computeExportBounds(stage: Konva.Stage, base: { width: number; height: number }) {
-  const imgRect = { x: 0, y: 0, width: base.width, height: base.height };
+/** Base box (image, board page, or padded backdrop composition) grown to cover
+ * annotations that spill past its edges. Requires the stage transform to be reset
+ * to identity first (so getClientRect coords are in document space). */
+function computeExportBounds(stage: Konva.Stage, base: { x: number; y: number; width: number; height: number }) {
   const annoLayer = stage.getLayers()[1];
-  if (!annoLayer) return imgRect;
+  if (!annoLayer) return base;
   const a = annoLayer.getClientRect({ relativeTo: stage });
-  if (a.width === 0 || a.height === 0) return imgRect;
-  const minX = Math.floor(Math.min(0, a.x));
-  const minY = Math.floor(Math.min(0, a.y));
-  const maxX = Math.ceil(Math.max(imgRect.width, a.x + a.width));
-  const maxY = Math.ceil(Math.max(imgRect.height, a.y + a.height));
+  if (a.width === 0 || a.height === 0) return base;
+  const minX = Math.floor(Math.min(base.x, a.x));
+  const minY = Math.floor(Math.min(base.y, a.y));
+  const maxX = Math.ceil(Math.max(base.x + base.width, a.x + a.width));
+  const maxY = Math.ceil(Math.max(base.y + base.height, a.y + a.height));
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
@@ -51,14 +51,13 @@ function renderAnnotatedPng(): Uint8Array {
   const base = img
     ? { width: img.naturalWidth, height: img.naturalHeight }
     : { width: store.screenshot.width, height: store.screenshot.height };
-  // Explicit crop wins; a backdrop sets the padded composition bounds (negative
-  // origin, captured correctly post-transform-reset); otherwise grow to include
-  // annotations outside the base rect. (A board never has a backdrop.)
-  const rect = cropRect
-    ? cropRect
-    : backdrop && img
-      ? backdropBounds(img.naturalWidth, img.naturalHeight, backdrop)
-      : computeExportBounds(stage, base);
+  // Base box = the padded backdrop composition (if any) or the image/board page,
+  // then grown to wrap annotations that spill outside it — matching the editor.
+  // Explicit crop overrides everything. (A board never has a backdrop.)
+  const baseRect = backdrop && img
+    ? backdropBounds(img.naturalWidth, img.naturalHeight, backdrop)
+    : { x: 0, y: 0, width: base.width, height: base.height };
+  const rect = cropRect ? cropRect : computeExportBounds(stage, baseRect);
 
   // Background fill: a transparent board keeps alpha (no fill); any other board
   // fills with its color; a screenshot uses the existing canvas-gray backdrop so

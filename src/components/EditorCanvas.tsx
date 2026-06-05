@@ -660,7 +660,7 @@ export function EditorCanvas() {
             />
           )}
           {screenshot.imageEl && backdrop && (
-            <Backdrop b={backdrop} imgW={screenshot.width} imgH={screenshot.height} />
+            <Backdrop b={backdrop} imgW={screenshot.width} imgH={screenshot.height} panelBounds={contentBounds ?? undefined} />
           )}
           {screenshot.imageEl && (
             <KonvaImage

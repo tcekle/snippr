@@ -1,25 +1,28 @@
 import { Group, Rect, Circle } from 'react-konva';
 import type { BackdropConfig } from '../types/backdrop';
 import { FRAME_BAR_HEIGHT } from '../types/backdrop';
-import { backdropBounds, gradientProps } from '../utils/backdropGeometry';
+import { backdropBounds, gradientProps, type Bounds } from '../utils/backdropGeometry';
 
 type FillProps =
   | { fill: string }
   | ReturnType<typeof gradientProps>;
 
-export function Backdrop({ b, imgW, imgH }: { b: BackdropConfig; imgW: number; imgH: number }) {
+export function Backdrop({ b, imgW, imgH, panelBounds }: { b: BackdropConfig; imgW: number; imgH: number; panelBounds?: Bounds }) {
   const bounds = backdropBounds(imgW, imgH, b);
+  // The colored panel grows to wrap any annotations that spill outside the padded
+  // image; the shadow/frame/image stay anchored to the image itself.
+  const panel = panelBounds ?? bounds;
   const bar = FRAME_BAR_HEIGHT[b.frame];
   const r = b.cornerRadius;
 
   const fillProps: FillProps = b.fill.kind === 'solid'
     ? { fill: b.fill.color }
-    : gradientProps(b.fill, bounds);
+    : gradientProps(b.fill, panel);
 
   return (
     <Group listening={false}>
       {/* backdrop panel */}
-      <Rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height}
+      <Rect x={panel.x} y={panel.y} width={panel.width} height={panel.height}
         cornerRadius={Math.min(20, r + 6)} {...fillProps} />
 
       {/* drop-shadow card behind the screenshot (+ bar) */}
