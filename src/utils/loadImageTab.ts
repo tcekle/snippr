@@ -1,5 +1,10 @@
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
+import { openSceneFromPng } from './sceneRestore';
+
+async function blobBytes(blob: Blob): Promise<Uint8Array> {
+  return new Uint8Array(await blob.arrayBuffer());
+}
 
 function decodeBlob(blob: Blob): Promise<{ url: string; img: HTMLImageElement }> {
   return new Promise((resolve, reject) => {
@@ -14,16 +19,20 @@ function decodeBlob(blob: Blob): Promise<{ url: string; img: HTMLImageElement }>
   });
 }
 
-/** Decode an image blob and open it as a new editor tab (background image). */
+/** Decode an image blob and open it as a new editor tab. A snippr-embedded PNG
+ * restores as a fully editable scene; anything else opens as a flat background. */
 export async function addTabFromBlob(blob: Blob): Promise<void> {
+  if (await openSceneFromPng(await blobBytes(blob))) return;
   const { url, img } = await decodeBlob(blob);
   useEditorStore.getState().addTab(url, img.naturalWidth, img.naturalHeight, img);
 }
 
 /** Import an image the user pasted or dropped: it becomes the background of a
- * new tab when nothing is open, otherwise an image layer on the active doc. */
+ * new tab when nothing is open, otherwise an image layer on the active doc.
+ * A scene-bearing PNG always opens as its own editable document (not a layer). */
 export async function importImageBlob(blob: Blob): Promise<void> {
   const s = useEditorStore.getState();
+  if (await openSceneFromPng(await blobBytes(blob))) return;
   if (!s.screenshot.imageEl) return addTabFromBlob(blob);
 
   const { url, img } = await decodeBlob(blob);

@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import type { ToolType } from '../types/annotations';
+import { openImageFile } from '../utils/openFile';
 
 export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => Promise<void>) {
   const {
@@ -36,6 +37,11 @@ export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => 
     if (ctrl && e.key.toLowerCase() === 'n') {
       e.preventDefault();
       useEditorStore.getState().newBoard();
+      return;
+    }
+    if (ctrl && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      void openImageFile();
       return;
     }
     if (ctrl && e.key.toLowerCase() === 'w') {

@@ -3437,6 +3437,7 @@ dependencies = [
  "arboard",
  "chrono",
  "color_quant",
+ "crc32fast",
  "env_logger",
  "gif",
  "image",

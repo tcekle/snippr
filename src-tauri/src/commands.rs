@@ -33,19 +33,39 @@ pub fn copy_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> Resul
 /// goes to the configured save directory with a timestamped name.
 #[tauri::command]
 pub fn save_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
-    let tauri::ipc::InvokeBody::Raw(png) = request.body() else {
-        return Err("expected raw PNG body".into());
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err("expected raw body".into());
+    };
+    let headers = request.headers();
+    let has_scene = headers.get("has-scene").and_then(|v| v.to_str().ok()) == Some("1");
+
+    // With an embedded scene, the body is framed `[u32be flatLen][flat PNG][snIp
+    // chunk-data]` — splice the scene chunk in before IEND so the saved PNG is
+    // reopenable. Without it, the body is the plain flattened PNG (legacy path).
+    let png: Vec<u8> = if has_scene {
+        let flat_len = headers
+            .get("flat-len")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<usize>().ok())
+            .ok_or("missing/invalid flat-len header")?;
+        if body.len() < 4 + flat_len {
+            return Err("framed save body too short".into());
+        }
+        let flat = &body[4..4 + flat_len];
+        let chunk_data = &body[4 + flat_len..];
+        crate::png_embed::inject_snip_chunk(flat, chunk_data)?
+    } else {
+        body.to_vec()
     };
 
-    let explicit = request
-        .headers()
+    let explicit = headers
         .get("save-path")
         .and_then(|v| v.to_str().ok())
         .map(percent_decode);
 
     let saved = match explicit {
-        Some(p) if !p.is_empty() => export::save_png_to(std::path::Path::new(&p), png)?,
-        _ => export::save_png_file(&app, png)?,
+        Some(p) if !p.is_empty() => export::save_png_to(std::path::Path::new(&p), &png)?,
+        _ => export::save_png_file(&app, &png)?,
     };
     Ok(saved.to_string_lossy().into_owned())
 }

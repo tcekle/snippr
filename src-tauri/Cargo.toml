@@ -32,6 +32,9 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 # pinning the same majors reuses the locked builds (no duplicate compilation).
 gif = "0.14"
 color_quant = "1.1"
+# CRC-32 for the editable-PNG scene chunk splice (png_embed). Already in
+# Cargo.lock transitively (flate2/png), so this reuses the locked build.
+crc32fast = "1"
 chrono = "0.4"
 log = "0.4"
 env_logger = "0.11"

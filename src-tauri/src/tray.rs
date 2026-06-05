@@ -15,6 +15,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
     let handle = app.handle();
 
     let open = MenuItem::with_id(handle, "open", "Open editor", true, None::<&str>)?;
+    let open_file = MenuItem::with_id(handle, "open_file", "Open image…", true, None::<&str>)?;
     let annotate = MenuItem::with_id(handle, "annotate", "Annotate clipboard image", true, None::<&str>)?;
     let scroll = MenuItem::with_id(handle, "scroll", "Scrolling capture", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(handle, "pause", "Pause watching", true, false, None::<&str>)?;
@@ -25,6 +26,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
 
     let menu = Menu::with_items(handle, &[
         &open,
+        &open_file,
         &annotate,
         &scroll,
         &pause,
@@ -45,6 +47,10 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
                 match event.id().as_ref() {
                     "open" => {
                         crate::show_main_window(app);
+                    }
+                    "open_file" => {
+                        crate::show_main_window(app);
+                        let _ = app.emit_to("main", "open-file", ());
                     }
                     "annotate" => {
                         let app = app.clone();

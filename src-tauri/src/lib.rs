@@ -4,6 +4,7 @@ mod commands;
 mod cursor;
 mod export;
 mod gif_export;
+mod png_embed;
 mod screen_recording;
 mod scrolling_capture;
 mod settings;

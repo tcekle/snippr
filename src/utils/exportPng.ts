@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { useEditorStore, type SnipprSettings } from '../store/editorStore';
 import { backdropBounds } from './backdropGeometry';
+import { buildSceneContainer, serializeContainer, imageAnnoBytes, u32be } from './sceneEmbed';
 
 const CANVAS_BG = '#181818'; // matches the editor canvas background
 
@@ -117,16 +118,63 @@ function timestamp(): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
-/** Save the annotated image via a Save As dialog. Returns the path, or null if cancelled. */
+/** The unannotated base bitmap at native resolution (raw PNG bytes), or null for
+ *  a board. This is what pixelate/loupe sample and what reopen restores from. */
+async function renderBasePng(): Promise<Uint8Array | null> {
+  const s = useEditorStore.getState();
+  const img = s.screenshot.imageEl;
+  if (!img) return null; // board → no base image
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  c.getContext('2d')!.drawImage(img, 0, 0);
+  const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/png'));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+/** Build the `snIp` chunk DATA for the current document (the editable scene). */
+async function buildSceneChunkData(): Promise<Uint8Array> {
+  const basePng = await renderBasePng(); // null for boards
+  const container = buildSceneContainer(basePng);
+  // Add every ImageAnno's bitmap bytes, keyed by the annotation id.
+  const s = useEditorStore.getState();
+  await Promise.all(
+    s.annotations.map(async (a) => {
+      if (a.type === 'image') container.blobs.set(a.id, await imageAnnoBytes(a.src));
+    }),
+  );
+  return serializeContainer(container);
+}
+
+/** Frame [u32be flatLen][flat PNG][snIp chunk-data] into one raw IPC body. */
+function frameSaveBody(flat: Uint8Array, chunk: Uint8Array): Uint8Array {
+  const head = u32be(flat.length);
+  const out = new Uint8Array(head.length + flat.length + chunk.length);
+  out.set(head, 0);
+  out.set(flat, head.length);
+  out.set(chunk, head.length + flat.length);
+  return out;
+}
+
+/** Save the annotated image via a Save As dialog, embedding the editable scene
+ *  so the PNG reopens as a workspace. Returns the path, or null if cancelled. */
 export async function saveAnnotatedAs(): Promise<string | null> {
-  const bytes = renderAnnotatedPng();
+  const flat = renderAnnotatedPng();
+  const chunk = await buildSceneChunkData();
   const settings = await invoke<SnipprSettings>('get_settings');
   const target = await save({
     defaultPath: `${settings.saveDirectory}\\snippr_${timestamp()}.png`,
     filters: [{ name: 'PNG image', extensions: ['png'] }],
   });
   if (!target) return null;
-  return await invoke<string>('save_annotated', bytes, {
-    headers: { 'save-path': encodeURIComponent(target) },
+  // One framed raw body carries the flat render + the scene chunk (CLAUDE.md:
+  // images cross as raw binary, never base64/JSON). Rust splits and splices.
+  const body = frameSaveBody(flat, chunk);
+  return await invoke<string>('save_annotated', body, {
+    headers: {
+      'save-path': encodeURIComponent(target),
+      'flat-len': String(flat.length),
+      'has-scene': '1',
+    },
   });
 }

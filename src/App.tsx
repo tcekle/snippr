@@ -7,6 +7,7 @@ import { useWatcherState } from './hooks/useWatcherState';
 import { useSettingsListener } from './hooks/useSettingsListener';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { copyAnnotated, saveAnnotatedAs } from './utils/exportPng';
+import { openImageFile } from './utils/openFile';
 import { TopBar } from './components/TopBar';
 import { ToolRail } from './components/ToolRail';
 import { EditorCanvas } from './components/EditorCanvas';
@@ -48,6 +49,12 @@ function App() {
       unlistenSaved.then((fn) => fn());
       unlistenError.then((fn) => fn());
     };
+  }, []);
+
+  // Tray "Open image…" → run the file-open dialog in the WebView
+  useEffect(() => {
+    const unlisten = listen('open-file', () => { void openImageFile(); });
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   // README screenshot helper — only in dev, only with ?demo=1

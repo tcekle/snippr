@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
+import { openImageFile } from '../utils/openFile';
 
 interface Props {
   onCopy: () => Promise<void>;
@@ -116,6 +117,20 @@ export function TopBar({ onCopy, onSave }: Props) {
           </button>
         </>
       )}
+
+      <button
+        onClick={() => openImageFile()}
+        title="Open an image or editable snippr PNG (Ctrl+O)"
+        style={{
+          background: 'transparent', color: 'var(--color-text)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 6, padding: '5px 14px', fontSize: 13, fontWeight: 600,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
+        <OpenIcon />
+        Open
+      </button>
 
       <button
         onClick={() => invoke('begin_snapshot_selection').catch(console.error)}
@@ -305,6 +320,15 @@ function CaretIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
       <path d="M2.5 4l2.5 2.5L7.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function OpenIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M1.5 4A1.5 1.5 0 0 1 3 2.5h3l1.5 1.5h4A1.5 1.5 0 0 1 13 5.5V12a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 1.5 12z"
+        stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
