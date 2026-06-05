@@ -38,6 +38,7 @@ const RAIL: RailEntry[] = [
   { variants: [{ tool: 'badge', label: 'Badge', hotkey: 'B', icon: <BadgeIcon /> }] },
   { variants: [{ tool: 'pixelate', label: 'Pixelate', hotkey: 'X', icon: <PixelateIcon /> }] },
   { variants: [{ tool: 'crop', label: 'Crop', hotkey: 'C', icon: <CropIcon /> }] },
+  { variants: [{ tool: 'backdrop', label: 'Backdrop', hotkey: 'G', icon: <BackdropIcon /> }] },
 ];
 
 const LONG_PRESS_MS = 350;
@@ -393,6 +394,15 @@ function CropIcon() {
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <path d="M4 2v10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M14 16V6H4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    </svg>
+  );
+}
+
+function BackdropIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <rect x="1.5" y="1.5" width="15" height="15" rx="3" stroke="currentColor" strokeWidth="1.3" opacity="0.5" />
+      <rect x="5" y="5" width="8" height="8" rx="1.5" fill="currentColor" />
     </svg>
   );
 }

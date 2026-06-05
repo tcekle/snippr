@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import Konva from 'konva';
 import { nanoid } from 'nanoid';
 import type { Annotation, ToolType } from '../types/annotations';
+import type { BackdropConfig } from '../types/backdrop';
+import { DEFAULT_BACKDROP } from '../types/backdrop';
 
 export interface SnipprSettings {
   saveDirectory: string;
@@ -14,6 +16,7 @@ export interface SnipprSettings {
 interface HistoryEntry {
   annotations: Annotation[];
   cropRect: { x: number; y: number; width: number; height: number } | null;
+  backdrop: BackdropConfig | null;
 }
 
 interface ScreenshotState {
@@ -36,6 +39,7 @@ interface DocSnapshot {
   history: HistoryEntry[];
   future: HistoryEntry[];
   cropRect: { x: number; y: number; width: number; height: number } | null;
+  backdrop: BackdropConfig | null;
   view: ViewState;
 }
 
@@ -52,6 +56,7 @@ const EMPTY_DOC = {
   history: [] as HistoryEntry[],
   future: [] as HistoryEntry[],
   cropRect: null as DocSnapshot['cropRect'],
+  backdrop: null as BackdropConfig | null,
   selectedId: null as string | null,
   editingTextId: null as string | null,
 };
@@ -63,6 +68,7 @@ function snapshotActive(state: EditorState): DocSnapshot {
     history: state.history,
     future: state.future,
     cropRect: state.cropRect,
+    backdrop: state.backdrop,
     view: state.view,
   };
 }
@@ -82,6 +88,7 @@ interface EditorState {
   history: HistoryEntry[];
   future: HistoryEntry[];
   cropRect: { x: number; y: number; width: number; height: number } | null;
+  backdrop: BackdropConfig | null;
   activeTool: ToolType;
   strokeColor: string;
   strokeWidth: number;
@@ -111,6 +118,8 @@ interface EditorActions {
   setTool: (tool: ToolType) => void;
   setView: (view: Partial<ViewState>) => void;
   setCropRect: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  setBackdrop: (partial: Partial<BackdropConfig>, pushHistory?: boolean) => void;
+  removeBackdrop: () => void;
   setSelectedId: (id: string | null) => void;
   setEditingTextId: (id: string | null) => void;
   setPaused: (paused: boolean) => void;
@@ -132,6 +141,7 @@ function pushHistoryEntry(state: EditorState): Pick<EditorState, 'history' | 'fu
   const entry: HistoryEntry = {
     annotations: [...state.annotations],
     cropRect: state.cropRect,
+    backdrop: state.backdrop,
   };
   const history = [...state.history, entry].slice(-MAX_HISTORY);
   return { history, future: [] };
@@ -144,6 +154,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   history: [],
   future: [],
   cropRect: null,
+  backdrop: null,
   activeTool: 'select',
   strokeColor: '#ff3b30',
   strokeWidth: 4,
@@ -270,12 +281,14 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
       const futureEntry: HistoryEntry = {
         annotations: [...state.annotations],
         cropRect: state.cropRect,
+        backdrop: state.backdrop,
       };
       return {
         history,
         future: [...state.future, futureEntry],
         annotations: entry.annotations,
         cropRect: entry.cropRect,
+        backdrop: entry.backdrop,
         selectedId: null,
       };
     });
@@ -289,19 +302,27 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
       const histEntry: HistoryEntry = {
         annotations: [...state.annotations],
         cropRect: state.cropRect,
+        backdrop: state.backdrop,
       };
       return {
         future,
         history: [...state.history, histEntry],
         annotations: entry.annotations,
         cropRect: entry.cropRect,
+        backdrop: entry.backdrop,
         selectedId: null,
       };
     });
   },
 
   setTool: (tool) => {
-    set({ activeTool: tool, selectedId: null, editingTextId: null });
+    set((state) => ({
+      activeTool: tool,
+      selectedId: null,
+      editingTextId: null,
+      backdrop: tool === 'backdrop' && !state.backdrop ? DEFAULT_BACKDROP : state.backdrop,
+      cropRect: tool === 'backdrop' ? null : state.cropRect,
+    }));
   },
 
   setView: (view) => {
@@ -309,7 +330,23 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   },
 
   setCropRect: (rect) => {
-    set({ cropRect: rect });
+    set((state) => ({ cropRect: rect, backdrop: rect ? null : state.backdrop }));
+  },
+
+  setBackdrop: (partial, pushHistory = true) => {
+    set((state) => {
+      const base = state.backdrop ?? DEFAULT_BACKDROP;
+      const histSnap = pushHistory ? pushHistoryEntry(state) : {};
+      return {
+        ...histSnap,
+        backdrop: { ...base, ...partial },
+        cropRect: null, // backdrop & crop are mutually exclusive in v1
+      };
+    });
+  },
+
+  removeBackdrop: () => {
+    set((state) => ({ ...pushHistoryEntry(state), backdrop: null }));
   },
 
   setSelectedId: (id) => {

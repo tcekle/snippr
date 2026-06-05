@@ -1,6 +1,6 @@
 /** Polygon variants living under the shape-tool flyout (rect/ellipse have their own anno types). */
 export type ShapeKind = 'triangle'|'diamond'|'star';
-export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|ShapeKind;
+export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|ShapeKind;
 
 type Base = { id: string; };
 export type RectAnno      = Base & { type:'rect'; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };

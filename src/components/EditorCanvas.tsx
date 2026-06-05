@@ -17,6 +17,8 @@ import { TextShape } from './annotations/TextShape';
 import { BadgeShape } from './annotations/BadgeShape';
 import { PixelateShape } from './annotations/PixelateShape';
 import { ImageShape } from './annotations/ImageShape';
+import { Backdrop } from './Backdrop';
+import { backdropBounds } from '../utils/backdropGeometry';
 import { buildPixelateCanvas } from '../utils/buildPixelateCanvas';
 import { TextEditOverlay } from './TextEditOverlay';
 
@@ -46,7 +48,7 @@ export function EditorCanvas() {
   const store = useEditorStore();
   const {
     screenshot, annotations, selectedId, activeTool, strokeColor, strokeWidth, fontSize,
-    editingTextId, view, cropRect, fitNonce,
+    editingTextId, view, cropRect, backdrop, fitNonce,
     addAnnotation, updateAnnotation, setSelectedId, setEditingTextId,
     setView, setCropRect, setStageRef,
   } = store;
@@ -70,18 +72,22 @@ export function EditorCanvas() {
     return () => ro.disconnect();
   }, []);
 
-  // Fit to window on new screenshot, container resize, or explicit fit request (Ctrl+0 / Fit button)
+  // Fit to window on new screenshot, container resize, or explicit fit request (Ctrl+0 / Fit button).
+  // With a backdrop active, fit the whole padded composition (its origin is negative).
   useEffect(() => {
     if (!screenshot.imageEl || containerSize.width === 0 || containerSize.height === 0) return;
+    const bounds = backdrop
+      ? backdropBounds(screenshot.width, screenshot.height, backdrop)
+      : { x: 0, y: 0, width: screenshot.width, height: screenshot.height };
     const scale = Math.min(
-      containerSize.width / screenshot.width,
-      containerSize.height / screenshot.height,
+      containerSize.width / bounds.width,
+      containerSize.height / bounds.height,
       1
     );
-    const x = (containerSize.width - screenshot.width * scale) / 2;
-    const y = (containerSize.height - screenshot.height * scale) / 2;
+    const x = (containerSize.width - bounds.width * scale) / 2 - bounds.x * scale;
+    const y = (containerSize.height - bounds.height * scale) / 2 - bounds.y * scale;
     setView({ scale, x, y });
-  }, [screenshot.url, containerSize.width, containerSize.height, fitNonce]);
+  }, [screenshot.url, containerSize.width, containerSize.height, fitNonce, backdrop]);
 
   // Update transformer on selection change
   useEffect(() => {
@@ -540,14 +546,24 @@ export function EditorCanvas() {
         onWheel={handleWheel}
         style={{ cursor: getCursor() }}
       >
-        {/* Layer 1: Background image */}
+        {/* Layer 1: Backdrop (behind) + background image. Both are captured by
+            toDataURL on export. */}
         <Layer listening={false}>
+          {screenshot.imageEl && backdrop && (
+            <Backdrop b={backdrop} imgW={screenshot.width} imgH={screenshot.height} />
+          )}
           {screenshot.imageEl && (
             <KonvaImage
               image={screenshot.imageEl}
               x={0} y={0}
               width={screenshot.width}
               height={screenshot.height}
+              cornerRadius={
+                !backdrop ? 0
+                : backdrop.frame !== 'none'
+                  ? [0, 0, backdrop.cornerRadius, backdrop.cornerRadius] // bottom only (bar rounds the top)
+                  : backdrop.cornerRadius                                 // all four
+              }
               listening={false}
             />
           )}

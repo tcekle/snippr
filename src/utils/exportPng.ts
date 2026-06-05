@@ -2,6 +2,7 @@ import Konva from 'konva';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { useEditorStore, type SnipprSettings } from '../store/editorStore';
+import { backdropBounds } from './backdropGeometry';
 
 const CANVAS_BG = '#181818'; // matches the editor canvas background
 
@@ -43,10 +44,16 @@ function renderAnnotatedPng(): Uint8Array {
   stage.position({ x: 0, y: 0 });
   stage.batchDraw();
 
-  const { cropRect } = store;
+  const { cropRect, backdrop } = store;
   const img = store.screenshot.imageEl;
-  // Explicit crop wins; otherwise grow to include annotations outside the image
-  const rect = cropRect ?? computeExportBounds(stage, img);
+  // Explicit crop wins; a backdrop sets the padded composition bounds (negative
+  // origin, captured correctly post-transform-reset); otherwise grow to include
+  // annotations outside the image.
+  const rect = cropRect
+    ? cropRect
+    : backdrop
+      ? backdropBounds(img.naturalWidth, img.naturalHeight, backdrop)
+      : computeExportBounds(stage, img);
 
   // Solid canvas-colored backdrop so out-of-image annotations don't sit on
   // transparency (alpha is unreliable through the Windows clipboard)

@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
+import {
+  BACKDROP_PRESETS,
+  DEFAULT_BACKDROP,
+  fillsEqual,
+  type AspectMode,
+  type BackdropFill,
+  type FrameStyle,
+} from '../types/backdrop';
 
 // The usual defaults (iOS system palette) — the last grid tile opens the custom picker
 const PRESET_COLORS = [
@@ -15,12 +23,15 @@ export function PropertiesPanel() {
   const [customOpen, setCustomOpen] = useState(() => !isPreset);
 
   const showFontSize = activeTool === 'text';
+  // The backdrop tool has its own fill controls; stroke color/width don't apply there.
+  const showAnnotationStyles = activeTool !== 'backdrop';
 
   return (
     <div style={{
       padding: '12px 14px', overflow: 'auto', flexShrink: 0, maxHeight: '60%',
       display: 'flex', flexDirection: 'column', gap: 16,
     }}>
+      {showAnnotationStyles && (
       <div>
         <Label>Color</Label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
@@ -85,7 +96,9 @@ export function PropertiesPanel() {
           </>
         )}
       </div>
+      )}
 
+      {showAnnotationStyles && (
       <div>
         <Label>Stroke Width</Label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -97,6 +110,7 @@ export function PropertiesPanel() {
           <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 20 }}>{strokeWidth}</span>
         </div>
       </div>
+      )}
 
       {showFontSize && (
         <div>
@@ -114,6 +128,7 @@ export function PropertiesPanel() {
 
       <PixelSizeControl />
       <BadgeNumberControl />
+      <BackdropControls />
     </div>
   );
 }
@@ -195,5 +210,162 @@ function Label({ children }: { children: React.ReactNode }) {
     <div style={{ color: 'var(--color-text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
       {children}
     </div>
+  );
+}
+
+// Render a backdrop fill as a CSS background value.
+function fillToCss(f: BackdropFill): string {
+  return f.kind === 'solid' ? f.color : `linear-gradient(${f.angle}deg, ${f.from}, ${f.to})`;
+}
+
+function BackdropControls() {
+  const { backdrop, activeTool, setBackdrop, removeBackdrop } = useEditorStore();
+  if (activeTool !== 'backdrop') return null;
+  const b = backdrop ?? DEFAULT_BACKDROP;
+
+  return (
+    <>
+      <div>
+        <Label>Backdrop</Label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          {BACKDROP_PRESETS.map((preset, i) => {
+            const selected = fillsEqual(b.fill, preset);
+            return (
+              <button
+                key={i}
+                onClick={() => setBackdrop({ fill: preset })}
+                title="Backdrop"
+                style={{
+                  width: '100%', aspectRatio: '1.3', borderRadius: 6,
+                  background: fillToCss(preset),
+                  border: selected ? '2px solid var(--color-accent)' : '2px solid transparent',
+                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)',
+                  cursor: 'pointer', padding: 0, outline: 'none',
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <Label>Padding</Label>
+        <Slider min={0} max={200} value={b.padding} onChange={(v, commit) => setBackdrop({ padding: v }, commit)} />
+      </div>
+
+      <div>
+        <Label>Corner Radius</Label>
+        <Slider min={0} max={40} value={b.cornerRadius} onChange={(v, commit) => setBackdrop({ cornerRadius: v }, commit)} />
+      </div>
+
+      <div>
+        <Label>Window Frame</Label>
+        <Segmented<FrameStyle>
+          value={b.frame}
+          options={['none', 'macos', 'browser']}
+          onChange={(v) => setBackdrop({ frame: v })}
+        />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--color-text)', fontSize: 12.5 }}>Drop shadow</span>
+        <Toggle on={b.shadow} onToggle={() => setBackdrop({ shadow: !b.shadow })} />
+      </div>
+
+      <div>
+        <Label>Aspect</Label>
+        <Segmented<AspectMode>
+          value={b.aspect}
+          options={['auto', '1:1', '16:9', '4:3']}
+          onChange={(v) => setBackdrop({ aspect: v })}
+        />
+      </div>
+
+      <button
+        onClick={() => removeBackdrop()}
+        style={{
+          width: '100%', background: 'transparent', color: 'var(--color-text)',
+          border: '1px solid var(--color-border)', borderRadius: 6,
+          padding: '7px 0', fontSize: 12.5, fontWeight: 600,
+          cursor: 'pointer', outline: 'none',
+        }}
+      >
+        Remove backdrop
+      </button>
+    </>
+  );
+}
+
+function Segmented<T extends string>({ value, options, onChange }: {
+  value: T;
+  options: readonly T[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 4, background: 'var(--color-elevated)', borderRadius: 7, padding: 3 }}>
+      {options.map((opt) => {
+        const selected = opt === value;
+        return (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            style={{
+              flex: 1, borderRadius: 5, padding: '5px 0', fontSize: 11.5, fontWeight: 600,
+              background: selected ? 'var(--color-accent)' : 'transparent',
+              color: selected ? '#fff' : 'var(--color-text-muted)',
+              border: 'none', cursor: 'pointer', outline: 'none',
+            }}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Slider({ min, max, value, onChange }: {
+  min: number;
+  max: number;
+  value: number;
+  onChange: (v: number, commit: boolean) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <input
+        type="range" min={min} max={max} value={value}
+        // Fire continuously without committing — avoids spamming undo history during a drag.
+        onChange={(e) => onChange(Number(e.target.value), false)}
+        // Commit on release / key-up so the whole drag collapses into a single history entry.
+        onPointerUp={(e) => onChange(Number(e.currentTarget.value), true)}
+        onKeyUp={(e) => onChange(Number(e.currentTarget.value), true)}
+        style={{ flex: 1, accentColor: 'var(--color-accent)' }}
+      />
+      <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 28 }}>{value}</span>
+    </div>
+  );
+}
+
+function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      style={{
+        width: 36, height: 20, flexShrink: 0, borderRadius: 10, padding: 0,
+        background: on ? 'var(--color-accent)' : 'var(--color-border)',
+        border: 'none', cursor: 'pointer', outline: 'none',
+        position: 'relative', transition: 'background 0.15s',
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute', top: 2, left: on ? 18 : 2,
+          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+          transition: 'left 0.15s',
+        }}
+      />
+    </button>
   );
 }

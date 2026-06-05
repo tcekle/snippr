@@ -149,4 +149,11 @@ export async function maybeLoadDemo(): Promise<void> {
   s.addAnnotation({ id: nanoid(), type: 'shape', shape: 'star', x: 664, y: 160, width: 60, height: 60, stroke: '#ffcc00', strokeWidth: 4 });
   s.addAnnotation({ id: nanoid(), type: 'pixelate', x: 278, y: 412, width: 330, height: 28, pixelSize: 10 });
   s.setSelectedId(null);
+
+  // `?demo=1&backdrop=1` also turns the Beautify backdrop on (default config)
+  // and selects the Backdrop tool so its panel section is visible.
+  if (new URLSearchParams(location.search).has('backdrop')) {
+    s.setBackdrop({});
+    s.setTool('backdrop');
+  }
 }
