@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { RegionSelector } from "./components/RegionSelector";
+import { RecToolbar } from "./components/RecToolbar";
 import "./index.css";
 
 // Outside Tauri (plain-browser dev for README screenshots) getCurrentWindow throws
@@ -13,8 +14,12 @@ try {
   /* not running under Tauri */
 }
 
+function rootFor(label: string) {
+  if (label.startsWith("rec-toolbar")) return <RecToolbar />;
+  if (label.startsWith("overlay")) return <RegionSelector />;
+  return <App />;
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    {label.startsWith("overlay") ? <RegionSelector /> : <App />}
-  </React.StrictMode>,
+  <React.StrictMode>{rootFor(label)}</React.StrictMode>,
 );

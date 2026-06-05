@@ -24,12 +24,12 @@ export function RegionSelector() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [drag, setDrag] = useState<DragRect | null>(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
-  const [mode, setMode] = useState<'scrolling' | 'snapshot'>('scrolling');
+  const [mode, setMode] = useState<'scrolling' | 'snapshot' | 'recording'>('scrolling');
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // The same overlay hosts both capture flavours; Rust knows which one
+  // The same overlay hosts every capture flavour; Rust knows which one
   useEffect(() => {
-    invoke<'scrolling' | 'snapshot'>('get_selection_mode')
+    invoke<'scrolling' | 'snapshot' | 'recording'>('get_selection_mode')
       .then(setMode)
       .catch(console.error);
   }, []);
@@ -95,7 +95,10 @@ export function RegionSelector() {
       const width = Math.max(1, Math.round(rect.width * sf));
       const height = Math.max(1, Math.round(rect.height * sf));
 
-      const cmd = mode === 'snapshot' ? 'capture_snapshot' : 'start_scrolling_capture';
+      const cmd =
+        mode === 'snapshot' ? 'capture_snapshot'
+        : mode === 'recording' ? 'start_recording'
+        : 'start_scrolling_capture';
       await invoke(cmd, { x, y, width, height });
     } catch (err) {
       console.error('capture command failed', err);
@@ -165,6 +168,8 @@ export function RegionSelector() {
         }}>
           {mode === 'snapshot'
             ? 'Drag to capture a region — Esc to cancel'
+            : mode === 'recording'
+            ? 'Drag to select recording area — Esc to cancel'
             : 'Drag to select scroll area — Esc to cancel'}
         </div>
       )}
@@ -226,6 +231,8 @@ export function RegionSelector() {
           }}>
             {mode === 'snapshot'
               ? 'Capturing…'
+              : mode === 'recording'
+              ? 'Starting recording…'
               : 'Capturing — scroll happens automatically, Esc to stop'}
           </div>
         </div>

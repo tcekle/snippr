@@ -35,6 +35,20 @@ function App() {
     };
   }, []);
 
+  // Recording lifecycle results from the Rust side
+  useEffect(() => {
+    const unlistenSaved = listen<{ path: string }>('recording-saved', (event) => {
+      showToast(`Recording saved: ${event.payload.path}`);
+    });
+    const unlistenError = listen<{ message: string }>('recording-error', (event) => {
+      showToast(event.payload.message, true);
+    });
+    return () => {
+      unlistenSaved.then((fn) => fn());
+      unlistenError.then((fn) => fn());
+    };
+  }, []);
+
   // README screenshot helper — only in dev, only with ?demo=1
   useEffect(() => {
     if (import.meta.env.DEV) {

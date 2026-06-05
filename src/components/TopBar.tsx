@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
 
@@ -6,8 +7,43 @@ interface Props {
   onSave: () => Promise<void>;
 }
 
+type Fps = 10 | 20 | 30;
+const FPS_OPTIONS: Fps[] = [10, 20, 30];
+const FPS_KEY = 'snippr.recordFps';
+
+function loadFps(): Fps {
+  try {
+    const v = Number(localStorage.getItem(FPS_KEY));
+    if (FPS_OPTIONS.includes(v as Fps)) return v as Fps;
+  } catch { /* localStorage unavailable */ }
+  return 20;
+}
+
 export function TopBar({ onCopy, onSave }: Props) {
   const { paused, setSettingsOpen, screenshot } = useEditorStore();
+  const [fps, setFps] = useState<Fps>(loadFps);
+  const [fpsOpen, setFpsOpen] = useState(false);
+  const recordGroupRef = useRef<HTMLDivElement>(null);
+
+  // Persist fps choice
+  useEffect(() => {
+    try { localStorage.setItem(FPS_KEY, String(fps)); } catch { /* ignore */ }
+  }, [fps]);
+
+  // Close fps popover on outside click / Esc
+  useEffect(() => {
+    if (!fpsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!recordGroupRef.current?.contains(e.target as Node)) setFpsOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFpsOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [fpsOpen]);
 
   return (
     <div style={{
@@ -70,6 +106,63 @@ export function TopBar({ onCopy, onSave }: Props) {
         <AddScreenshotIcon />
         Add screenshot
       </button>
+
+      {/* Record button + fps picker caret share one bordered group */}
+      <div ref={recordGroupRef} style={{ position: 'relative', display: 'flex' }}>
+        <button
+          onClick={() => invoke('begin_recording_selection', { fps }).catch(console.error)}
+          title={`Record a screen region as MP4 (${fps} fps)`}
+          style={{
+            background: 'transparent', color: 'var(--color-text)',
+            border: '1px solid var(--color-border)', borderRight: 'none',
+            borderRadius: '6px 0 0 6px', padding: '5px 12px', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <RecordIcon />
+          Record
+        </button>
+        <button
+          onClick={() => setFpsOpen((o) => !o)}
+          title="Choose frame rate"
+          style={{
+            background: 'transparent', color: 'var(--color-text-muted)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '0 6px 6px 0', padding: '5px 7px', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center',
+          }}
+        >
+          <CaretIcon />
+        </button>
+        {fpsOpen && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 1500,
+            display: 'flex', flexDirection: 'column', gap: 2, minWidth: 96,
+            background: 'var(--color-elevated)', border: '1px solid var(--color-border)',
+            borderRadius: 6, padding: 4, boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
+          }}>
+            {FPS_OPTIONS.map((opt) => {
+              const active = opt === fps;
+              return (
+                <button
+                  key={opt}
+                  onClick={() => { setFps(opt); setFpsOpen(false); }}
+                  style={{
+                    border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 13,
+                    fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                    background: active ? 'var(--color-accent)' : 'transparent',
+                    color: active ? '#fff' : 'var(--color-text)',
+                  }}
+                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
+                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {opt} fps
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <button
         onClick={() => invoke('begin_scrolling_selection').catch(console.error)}
@@ -139,6 +232,23 @@ function GearIcon() {
       <circle cx="9" cy="9" r="3" stroke="currentColor" strokeWidth="1.5" />
       <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.22 3.22l1.42 1.42M13.36 13.36l1.42 1.42M3.22 14.78l1.42-1.42M13.36 4.64l1.42-1.42"
         stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RecordIcon() {
+  // Red filled recording dot
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="5" fill="#e11d48" />
+    </svg>
+  );
+}
+
+function CaretIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <path d="M2.5 4l2.5 2.5L7.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

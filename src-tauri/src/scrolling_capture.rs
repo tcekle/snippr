@@ -7,7 +7,7 @@
 //! snapshot-captured (added to the current document instead of a new tab).
 
 use std::io::Cursor;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -48,14 +48,36 @@ const MAX_OUTPUT_HEIGHT: u32 = 16_000;
 /// Initial sleep before first capture, giving the overlay time to hide.
 const START_DELAY_MS: u64 = 300;
 
-/// True when the overlay was opened for a single-region snapshot rather than
-/// a scrolling capture. The overlay frontend asks via `get_selection_mode`.
-static SNAPSHOT_MODE: AtomicBool = AtomicBool::new(false);
+/// Which flavour of selection the overlay is currently hosting. The overlay
+/// frontend asks via `get_selection_mode` to decide its drag behaviour and the
+/// command it fires once a region is drawn.
+///
+/// Tri-state rather than a bool because recording (added in milestone 1) is a
+/// third, distinct flow that reuses the very same overlay windows:
+///   0 = scrolling capture   → `start_scrolling_capture`
+///   1 = single-region snapshot → `capture_snapshot`
+///   2 = screen recording     → `start_recording`
+static SELECTION_MODE: AtomicU8 = AtomicU8::new(0);
+
+pub(crate) const MODE_SCROLLING: u8 = 0;
+pub(crate) const MODE_SNAPSHOT: u8 = 1;
+pub(crate) const MODE_RECORDING: u8 = 2;
+
+/// Set the active selection mode. Used by the `begin_*_selection` commands
+/// (and the recording module) right before they open the overlay.
+pub(crate) fn set_selection_mode(mode: u8) {
+    SELECTION_MODE.store(mode, Ordering::Relaxed);
+}
+
+/// Read the active selection mode.
+pub(crate) fn selection_mode() -> u8 {
+    SELECTION_MODE.load(Ordering::Relaxed)
+}
 
 // ── Overlay window ──────────────────────────────────────────────────────────
 
 /// Destroy every overlay window (one per monitor, labels `overlay-N`).
-fn destroy_overlays(app: &AppHandle) {
+pub(crate) fn destroy_overlays(app: &AppHandle) {
     for (label, win) in app.webview_windows() {
         if label.starts_with("overlay") {
             let _ = win.destroy();
@@ -164,7 +186,7 @@ pub fn begin_selection(app: &AppHandle) {
 /// command's IPC response).
 #[tauri::command]
 pub async fn begin_scrolling_selection(app: AppHandle) {
-    SNAPSHOT_MODE.store(false, Ordering::Relaxed);
+    set_selection_mode(MODE_SCROLLING);
     begin_selection(&app);
 }
 
@@ -172,17 +194,17 @@ pub async fn begin_scrolling_selection(app: AppHandle) {
 /// added to the current document.
 #[tauri::command]
 pub async fn begin_snapshot_selection(app: AppHandle) {
-    SNAPSHOT_MODE.store(true, Ordering::Relaxed);
+    set_selection_mode(MODE_SNAPSHOT);
     begin_selection(&app);
 }
 
 /// The overlay asks which flavour of selection it is hosting.
 #[tauri::command]
 pub fn get_selection_mode() -> &'static str {
-    if SNAPSHOT_MODE.load(Ordering::Relaxed) {
-        "snapshot"
-    } else {
-        "scrolling"
+    match selection_mode() {
+        MODE_SNAPSHOT => "snapshot",
+        MODE_RECORDING => "recording",
+        _ => "scrolling",
     }
 }
 
@@ -243,13 +265,19 @@ fn snapshot_session(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
 
 // ── GDI screen capture helper ───────────────────────────────────────────────
 
-/// Capture a rectangle of the screen (physical coords) into an RgbaImage.
+/// Capture a rectangle of the screen (physical coords) into a raw, top-down
+/// 32bpp **BGRA** byte buffer (the native GDI pixel order — no channel swap).
 /// All GDI resources are cleaned up before returning.
+///
+/// Returns `w*h*4` bytes on success. This is the shared core behind both
+/// `capture_screen_rect` (which swaps to RGBA for `image`/PNG) and
+/// `capture_screen_rect_bgra` (which hands the bytes straight to Media
+/// Foundation, whose RGB32 input format *is* BGRA — so no swap is wasted).
 ///
 /// We pass zero-value handle sentinels rather than Option<HDC> because in a
 /// mixed windows@0.58/0.61 dependency graph the Param<HDC> trait impl for
 /// Option conflicts between the two windows_core versions.
-unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImage> {
+unsafe fn capture_screen_rect_raw(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<u8>> {
     let w_i = w as i32;
     let h_i = h as i32;
 
@@ -304,18 +332,11 @@ unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImag
         SRCCOPY | CAPTUREBLT,
     );
 
-    let img = if blt_ok.is_ok() {
+    let bytes = if blt_ok.is_ok() {
         // bits_ptr is a 32bpp BGRA buffer, top-down.
         let byte_count = (w * h * 4) as usize;
         let bgra = std::slice::from_raw_parts(bits_ptr as *const u8, byte_count);
-
-        // Convert BGRA → RGBA in place.
-        let mut rgba = bgra.to_vec();
-        for chunk in rgba.chunks_exact_mut(4) {
-            chunk.swap(0, 2); // B↔R
-        }
-
-        RgbaImage::from_raw(w, h, rgba)
+        Some(bgra.to_vec())
     } else {
         None
     };
@@ -326,7 +347,25 @@ unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImag
     let _ = DeleteDC(mem_dc);
     ReleaseDC(HWND::default(), screen_dc);
 
-    img
+    bytes
+}
+
+/// Capture a rectangle of the screen (physical coords) into an `RgbaImage`,
+/// converting GDI's native BGRA to the RGBA order `image` expects.
+unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImage> {
+    let mut buf = capture_screen_rect_raw(x, y, w, h)?;
+    // Convert BGRA → RGBA in place.
+    for chunk in buf.chunks_exact_mut(4) {
+        chunk.swap(0, 2); // B↔R
+    }
+    RgbaImage::from_raw(w, h, buf)
+}
+
+/// Capture a rectangle of the screen (physical coords) into a raw, top-down
+/// 32bpp BGRA buffer for the video encoder. No channel swap (MF RGB32 == BGRA),
+/// which is both cheaper and the orientation/order the SinkWriter wants.
+pub(crate) unsafe fn capture_screen_rect_bgra(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<u8>> {
+    capture_screen_rect_raw(x, y, w, h)
 }
 
 // ── Stitch algorithm (ported from ShareX CombineImages) ─────────────────────
@@ -638,7 +677,7 @@ fn capture_session(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
 
 /// Drain any pending WM_HOTKEY messages for `id` from the thread queue.
 /// Returns true if Esc was detected.
-fn check_hotkey(id: i32) -> bool {
+pub(crate) fn check_hotkey(id: i32) -> bool {
     let mut msg = MSG::default();
     unsafe {
         while PeekMessageW(&mut msg, HWND::default(), WM_HOTKEY, WM_HOTKEY, PM_REMOVE).as_bool() {

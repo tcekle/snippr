@@ -2,6 +2,7 @@
 mod clipboard_watcher;
 mod commands;
 mod export;
+mod screen_recording;
 mod scrolling_capture;
 mod settings;
 mod snip_filter;
@@ -59,6 +60,10 @@ pub fn run() {
             scrolling_capture::cancel_scrolling_selection,
             scrolling_capture::start_scrolling_capture,
             scrolling_capture::capture_snapshot,
+            screen_recording::begin_recording_selection,
+            screen_recording::start_recording,
+            screen_recording::stop_recording,
+            screen_recording::cancel_recording,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
