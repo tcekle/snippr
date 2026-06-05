@@ -39,6 +39,7 @@ const RAIL: RailEntry[] = [
   { variants: [{ tool: 'pixelate', label: 'Pixelate', hotkey: 'X', icon: <PixelateIcon /> }] },
   { variants: [{ tool: 'crop', label: 'Crop', hotkey: 'C', icon: <CropIcon /> }] },
   { variants: [{ tool: 'backdrop', label: 'Backdrop', hotkey: 'G', icon: <BackdropIcon /> }] },
+  { variants: [{ tool: 'loupe', label: 'Magnifier', hotkey: 'Z', icon: <LoupeIcon /> }] },
 ];
 
 const LONG_PRESS_MS = 350;
@@ -403,6 +404,17 @@ function BackdropIcon() {
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <rect x="1.5" y="1.5" width="15" height="15" rx="3" stroke="currentColor" strokeWidth="1.3" opacity="0.5" />
       <rect x="5" y="5" width="8" height="8" rx="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function LoupeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <circle cx="7.5" cy="7.5" r="5" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="11.2" y1="11.2" x2="16" y2="16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <line x1="7.5" y1="5.4" x2="7.5" y2="9.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <line x1="5.4" y1="7.5" x2="9.6" y2="7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }

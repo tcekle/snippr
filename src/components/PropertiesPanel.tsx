@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
+import type { Annotation } from '../types/annotations';
 import {
   BACKDROP_PRESETS,
   DEFAULT_BACKDROP,
@@ -128,6 +129,7 @@ export function PropertiesPanel() {
 
       <PixelSizeControl />
       <BadgeNumberControl />
+      <LoupeControls />
       <BackdropControls />
     </div>
   );
@@ -186,6 +188,60 @@ function BadgeNumberControl() {
         <StepButton label="+" onClick={() => setNumber(selected.number + 1)} />
       </div>
     </div>
+  );
+}
+
+/** Label + pill switch row — reusable inline toggle for boolean properties. */
+function ToggleRow({ label, on, onToggle }: { label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <span style={{ color: 'var(--color-text)', fontSize: 12.5 }}>{label}</span>
+      <Toggle on={on} onToggle={onToggle} />
+    </div>
+  );
+}
+
+function LoupeControls() {
+  const { selectedId, annotations, activeTool, updateAnnotation } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  const loupe = selected?.type === 'loupe' ? selected : null;
+  if (activeTool !== 'loupe' && !loupe) return null;
+
+  const set = (p: Partial<Extract<Annotation, { type: 'loupe' }>>, push = false) => {
+    if (loupe) updateAnnotation(loupe.id, p, push);
+  };
+
+  return (
+    <>
+      <div>
+        <Label>Magnification</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="range" min={1} max={6} step={0.5} value={loupe?.zoom ?? 2.5}
+            onChange={(e) => set({ zoom: Number(e.target.value) }, false)}
+            style={{ flex: 1, accentColor: 'var(--color-accent)' }} />
+          <span style={{ fontSize: 13, minWidth: 28, color: 'var(--color-text)' }}>{(loupe?.zoom ?? 2.5)}×</span>
+        </div>
+      </div>
+      <div>
+        <Label>Shape</Label>
+        <Segmented<'circle' | 'rect'>
+          value={loupe?.shape ?? 'circle'}
+          options={['circle', 'rect']}
+          onChange={(v) => set({ shape: v }, true)}
+        />
+      </div>
+      <div>
+        <Label>Border</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="range" min={0} max={8} value={loupe?.borderWidth ?? 3}
+            onChange={(e) => set({ borderWidth: Number(e.target.value) }, false)}
+            style={{ flex: 1, accentColor: 'var(--color-accent)' }} />
+          <span style={{ fontSize: 13, minWidth: 16, color: 'var(--color-text)' }}>{loupe?.borderWidth ?? 3}</span>
+        </div>
+      </div>
+      <ToggleRow label="Show source outline" on={loupe?.showSource ?? true} onToggle={() => set({ showSource: !loupe?.showSource }, true)} />
+      <ToggleRow label="Connector line" on={loupe?.connector ?? true} onToggle={() => set({ connector: !loupe?.connector }, true)} />
+    </>
   );
 }
 

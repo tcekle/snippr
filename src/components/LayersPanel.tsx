@@ -15,6 +15,7 @@ function describe(anno: Annotation): string {
     case 'badge':     return `Badge ${anno.number}`;
     case 'pixelate':  return 'Pixelate';
     case 'image':     return 'Image';
+    case 'loupe':     return 'Magnifier';
   }
 }
 
@@ -160,6 +161,13 @@ function AnnotationPreview({ anno }: { anno: Annotation }) {
         </svg>
       );
     }
+    case 'loupe':
+      return (
+        <svg {...box}>
+          <circle cx={PV_W / 2 - 1} cy={PV_H / 2 - 1} r={6} stroke={anno.borderColor} strokeWidth={1.5} fill="none" />
+          <line x1={PV_W / 2 + 3} y1={PV_H / 2 + 3} x2={PV_W / 2 + 8} y2={PV_H / 2 + 7} stroke={anno.borderColor} strokeWidth={1.5} />
+        </svg>
+      );
   }
 }
 

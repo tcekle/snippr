@@ -4,7 +4,7 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno } from '../types/annotations';
+import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno, LoupeAnno } from '../types/annotations';
 import { shapePoints, isShapeTool } from '../utils/shapeGeometry';
 import { RectShape } from './annotations/RectShape';
 import { PolyShape } from './annotations/PolyShape';
@@ -16,6 +16,7 @@ import { HighlightShape } from './annotations/HighlightShape';
 import { TextShape } from './annotations/TextShape';
 import { BadgeShape } from './annotations/BadgeShape';
 import { PixelateShape } from './annotations/PixelateShape';
+import { LoupeShape } from './annotations/LoupeShape';
 import { ImageShape } from './annotations/ImageShape';
 import { Backdrop } from './Backdrop';
 import { backdropBounds } from '../utils/backdropGeometry';
@@ -23,7 +24,7 @@ import { buildPixelateCanvas } from '../utils/buildPixelateCanvas';
 import { TextEditOverlay } from './TextEditOverlay';
 
 type InProgress =
-  | { type: 'rect' | 'pixelate'; x: number; y: number; width: number; height: number }
+  | { type: 'rect' | 'pixelate' | 'loupe'; x: number; y: number; width: number; height: number }
   | { type: 'shape'; shape: ShapeKind; x: number; y: number; width: number; height: number }
   | { type: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number }
   | { type: 'arrow' | 'line'; points: number[] }
@@ -165,7 +166,7 @@ export function EditorCanvas() {
     isDrawing.current = true;
     setSelectedId(null); // starting a new draw drops any prior selection
 
-    if (activeTool === 'rect' || activeTool === 'pixelate') {
+    if (activeTool === 'rect' || activeTool === 'pixelate' || activeTool === 'loupe') {
       setInProgress({ type: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
     } else if (isShapeTool(activeTool)) {
       setInProgress({ type: 'shape', shape: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
@@ -191,7 +192,7 @@ export function EditorCanvas() {
     if (!isDrawing.current || !inProgress) return;
     const pos = getPointerPos();
 
-    if (inProgress.type === 'rect' || inProgress.type === 'pixelate' || inProgress.type === 'shape') {
+    if (inProgress.type === 'rect' || inProgress.type === 'pixelate' || inProgress.type === 'loupe' || inProgress.type === 'shape') {
       setInProgress({
         ...inProgress,
         x: Math.min(pos.x, dragStartPos.current.x),
@@ -297,6 +298,18 @@ export function EditorCanvas() {
         width: inProgress.width, height: inProgress.height,
         pixelSize: 12,
       } satisfies PixelateAnno;
+    } else if (activeTool === 'loupe' && inProgress.type === 'loupe' && inProgress.width > 8 && inProgress.height > 8) {
+      const size = Math.max(inProgress.width, inProgress.height);
+      const zoom = 2.5;
+      const lensSide = size * zoom;
+      committed = {
+        id: nanoid(), type: 'loupe',
+        srcX: inProgress.x, srcY: inProgress.y, size,
+        x: inProgress.x, y: Math.max(0, inProgress.y - lensSide - 24),
+        zoom, shape: 'circle',
+        borderColor: strokeColor, borderWidth: 3,
+        showSource: true, connector: true,
+      } satisfies LoupeAnno;
     }
     if (committed) {
       addAnnotation(committed);
@@ -394,6 +407,12 @@ export function EditorCanvas() {
       updateAnnotation(anno.id, {
         points: a.points.map((v, i) => (i % 2 === 0 ? v * sx + nx : v * sy + ny)),
       } as Partial<typeof anno>, true);
+    } else if (anno.type === 'loupe') {
+      const a = anno as LoupeAnno;
+      updateAnnotation(anno.id, {
+        x: node.x(), y: node.y(),
+        zoom: Math.max(1, a.zoom * sx),
+      } as Partial<typeof anno>, true);
     }
   }, [updateAnnotation]);
 
@@ -436,6 +455,11 @@ export function EditorCanvas() {
         return <PixelateShape key={anno.id} anno={anno} imageEl={screenshot.imageEl} selected={sel}
           onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<PixelateAnno>, h)} />;
+      case 'loupe':
+        if (!screenshot.imageEl) return null;
+        return <LoupeShape key={anno.id} anno={anno} imageEl={screenshot.imageEl} selected={sel}
+          onSelect={onSelect}
+          onChange={(p, h) => updateAnnotation(anno.id, p as Partial<LoupeAnno>, h)} />;
       case 'image':
         return <ImageShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<ImageAnno>, h)} />;
@@ -580,12 +604,12 @@ export function EditorCanvas() {
         <Layer listening={false}>
           {inProgress && activeTool !== 'crop' && (
             <>
-              {(inProgress.type === 'rect') && (
+              {(inProgress.type === 'rect' || inProgress.type === 'loupe') && (
                 <Rect
-                  x={(inProgress as { type: 'rect'; x: number; y: number; width: number; height: number }).x}
-                  y={(inProgress as { type: 'rect'; x: number; y: number; width: number; height: number }).y}
-                  width={(inProgress as { type: 'rect'; x: number; y: number; width: number; height: number }).width}
-                  height={(inProgress as { type: 'rect'; x: number; y: number; width: number; height: number }).height}
+                  x={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).x}
+                  y={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).y}
+                  width={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).width}
+                  height={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).height}
                   stroke={strokeColor} strokeWidth={strokeWidth} fill="transparent"
                 />
               )}
