@@ -6,6 +6,7 @@ import { openImageFile } from '../utils/openFile';
 interface Props {
   onCopy: () => Promise<void>;
   onSave: () => Promise<void>;
+  onSaveFlat: () => Promise<void>;
 }
 
 type Fps = 10 | 20 | 30;
@@ -38,12 +39,14 @@ function loadFormat(): Format {
   return 'mp4';
 }
 
-export function TopBar({ onCopy, onSave }: Props) {
+export function TopBar({ onCopy, onSave, onSaveFlat }: Props) {
   const { paused, setSettingsOpen, screenshot } = useEditorStore();
   const [fps, setFps] = useState<Fps>(loadFps);
   const [format, setFormat] = useState<Format>(loadFormat);
   const [fpsOpen, setFpsOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const recordGroupRef = useRef<HTMLDivElement>(null);
+  const saveGroupRef = useRef<HTMLDivElement>(null);
 
   // Persist fps choice
   useEffect(() => {
@@ -69,6 +72,21 @@ export function TopBar({ onCopy, onSave }: Props) {
       window.removeEventListener('keydown', onKey);
     };
   }, [fpsOpen]);
+
+  // Close save popover on outside click / Esc
+  useEffect(() => {
+    if (!saveOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!saveGroupRef.current?.contains(e.target as Node)) setSaveOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSaveOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [saveOpen]);
 
   return (
     <div style={{
@@ -102,19 +120,53 @@ export function TopBar({ onCopy, onSave }: Props) {
             <CopyIcon />
             Copy
           </button>
-          <button
-            onClick={onSave}
-            style={{
-              background: 'transparent', color: 'var(--color-text)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 6, padding: '5px 14px', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-            }}
-            title="Save as… (Ctrl+S)"
-          >
-            <SaveIcon />
-            Save
-          </button>
+          {/* Save button + caret share one bordered group (mirrors Record) */}
+          <div ref={saveGroupRef} style={{ position: 'relative', display: 'flex' }}>
+            <button
+              onClick={onSave}
+              style={{
+                background: 'transparent', color: 'var(--color-text)',
+                border: '1px solid var(--color-border)', borderRight: 'none',
+                borderRadius: '6px 0 0 6px', padding: '5px 12px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              }}
+              title="Save editable PNG — reopens as a workspace (Ctrl+S)"
+            >
+              <SaveIcon />
+              Save
+            </button>
+            <button
+              onClick={() => setSaveOpen((o) => !o)}
+              title="More save options"
+              style={{
+                background: 'transparent', color: 'var(--color-text-muted)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '0 6px 6px 0', padding: '5px 7px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', display: 'flex', alignItems: 'center',
+              }}
+            >
+              <CaretIcon />
+            </button>
+            {saveOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 1500,
+                display: 'flex', flexDirection: 'column', gap: 2, minWidth: 200,
+                background: 'var(--color-elevated)', border: '1px solid var(--color-border)',
+                borderRadius: 6, padding: 4, boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
+              }}>
+                <SaveMenuItem
+                  title="Save editable PNG"
+                  sub="reopens as a workspace · larger"
+                  onClick={() => { setSaveOpen(false); void onSave(); }}
+                />
+                <SaveMenuItem
+                  title="Save flat PNG"
+                  sub="image only · ~half the size · Ctrl+Shift+S"
+                  onClick={() => { setSaveOpen(false); void onSaveFlat(); }}
+                />
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -274,6 +326,23 @@ export function TopBar({ onCopy, onSave }: Props) {
         <GearIcon />
       </button>
     </div>
+  );
+}
+
+function SaveMenuItem({ title, sub, onClick }: { title: string; sub: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 13, fontWeight: 600,
+        cursor: 'pointer', textAlign: 'left', background: 'transparent', color: 'var(--color-text)',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+    >
+      <div>{title}</div>
+      <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-text-muted)' }}>{sub}</div>
+    </button>
   );
 }
 

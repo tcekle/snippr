@@ -3,7 +3,11 @@ import { useEditorStore } from '../store/editorStore';
 import type { ToolType } from '../types/annotations';
 import { openImageFile } from '../utils/openFile';
 
-export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => Promise<void>) {
+export function useKeyboardShortcuts(
+  onCopy: () => Promise<void>,
+  onSave: () => Promise<void>,
+  onSaveFlat: () => Promise<void>,
+) {
   const {
     undo, redo, deleteSelected, setTool, activeTool,
     editingTextId, setEditingTextId, setCropRect, cropRect,
@@ -18,6 +22,7 @@ export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => 
 
     if (ctrl && e.key === 'z') { e.preventDefault(); undo(); return; }
     if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); return; }
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); onSaveFlat(); return; }
     if (ctrl && e.key === 's') { e.preventDefault(); onSave(); return; }
     if (ctrl && e.key === 'c') { e.preventDefault(); onCopy(); return; }
     if (ctrl && e.key === 'Enter') { e.preventDefault(); onCopy(); return; }
@@ -92,7 +97,7 @@ export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => 
     if (!ctrl && toolMap[e.key.toLowerCase()]) {
       setTool(toolMap[e.key.toLowerCase()]);
     }
-  }, [undo, redo, deleteSelected, setTool, activeTool, editingTextId, setEditingTextId, setCropRect, cropRect, setSelectedId, selectedId, onCopy, onSave]);
+  }, [undo, redo, deleteSelected, setTool, activeTool, editingTextId, setEditingTextId, setCropRect, cropRect, setSelectedId, selectedId, onCopy, onSave, onSaveFlat]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

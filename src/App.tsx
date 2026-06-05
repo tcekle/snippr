@@ -6,7 +6,7 @@ import { useImageImport } from './hooks/useImageImport';
 import { useWatcherState } from './hooks/useWatcherState';
 import { useSettingsListener } from './hooks/useSettingsListener';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { copyAnnotated, saveAnnotatedAs } from './utils/exportPng';
+import { copyAnnotated, saveAnnotatedAs, saveFlatAs } from './utils/exportPng';
 import { openImageFile } from './utils/openFile';
 import { TopBar } from './components/TopBar';
 import { ToolRail } from './components/ToolRail';
@@ -84,7 +84,17 @@ function App() {
     }
   }, [screenshot.imageEl]);
 
-  useKeyboardShortcuts(handleCopy, handleSave);
+  const handleSaveFlat = useCallback(async () => {
+    if (!screenshot.imageEl) return;
+    try {
+      const path = await saveFlatAs();
+      if (path) showToast(`Saved flat: ${path}`);
+    } catch (e) {
+      showToast(`Save failed: ${String(e)}`, true);
+    }
+  }, [screenshot.imageEl]);
+
+  useKeyboardShortcuts(handleCopy, handleSave, handleSaveFlat);
 
   const handleFit = useCallback(() => {
     if (!screenshot.imageEl) return;
@@ -102,7 +112,7 @@ function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <TopBar onCopy={handleCopy} onSave={handleSave} />
+      <TopBar onCopy={handleCopy} onSave={handleSave} onSaveFlat={handleSaveFlat} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <ToolRail />
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

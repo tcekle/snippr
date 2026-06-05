@@ -181,3 +181,19 @@ export async function saveAnnotatedAs(): Promise<string | null> {
     },
   });
 }
+
+/** Save the flattened PNG only — no embedded scene, so it's ~half the size of an
+ *  editable save but cannot be reopened as a workspace. Returns the path, or null
+ *  if cancelled. (No `has-scene` header → Rust writes the body verbatim.) */
+export async function saveFlatAs(): Promise<string | null> {
+  const flat = renderAnnotatedPng();
+  const settings = await invoke<SnipprSettings>('get_settings');
+  const target = await save({
+    defaultPath: `${settings.saveDirectory}\\snippr_${timestamp()}.png`,
+    filters: [{ name: 'PNG image', extensions: ['png'] }],
+  });
+  if (!target) return null;
+  return await invoke<string>('save_annotated', flat, {
+    headers: { 'save-path': encodeURIComponent(target) },
+  });
+}
