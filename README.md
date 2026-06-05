@@ -8,6 +8,8 @@
 
 snippr sits in your system tray and watches the clipboard. The moment the native Snipping Tool captures a screenshot, the snippr editor pops up with it loaded — draw arrows, boxes, text, badges, blur out secrets, then put the result back on the clipboard or save it as a PNG. No capture UI of its own, no replacing what Windows already does well.
 
+Beyond annotating snips, it also does the captures Windows can't: **scrolling capture** for long pages, **screen recording** to MP4/GIF, and a **Beautify** backdrop for polished, shareable shots.
+
 ![snippr editor with annotations](docs/editor.png)
 
 ## How it works
@@ -23,7 +25,10 @@ Ordinary copied images don't trigger the editor — snippr checks that the clipb
 - **Annotation tools** — line, rectangle, ellipse, triangle, diamond, star, arrow, freehand pen, highlighter, text, auto-numbered step badges (numbers editable in the properties panel)
 - **Photoshop-style tool flyout** — hold or right-click the shape button to pick its variants; the button remembers your last choice (the corner caret marks grouped tools)
 - **Color presets** — the usual palette one click away; the last swatch unfolds the full picker with a hex input
+- **Beautify backdrop** — wrap a screenshot in padding, a gradient/solid background, rounded corners, a drop shadow and a macOS/browser window frame; non-destructive, baked only on export (see below)
+- **Screen recording** — record a region to **MP4** or **GIF** at 10/20/30 fps, with the cursor captured and a live outline around the recorded area (see below)
 - **Scrolling capture** — grab an entire scrollable page as one tall image (see below)
+- **Add screenshot** — grab any screen region and drop it straight into the current document (or a new tab if nothing's open)
 - **Open existing images** — paste (`Ctrl+V`) or drag files in; with nothing open the image becomes the tab's background, with a document open it lands as a movable **image layer** on top
 - **Pixelate** — drag a region to censor API keys, emails, faces
 - **Crop** — non-destructive; adjust or remove it any time before export
@@ -51,6 +56,27 @@ Each row renders a miniature of the actual shape — its real geometry and color
 </tr>
 </table>
 
+## Beautify
+
+Turn a bare screenshot into something worth posting. The **Backdrop** tool (`G`, or the shield icon in the tool rail) wraps the image in a padded, colored background with rounded corners and a soft shadow — optionally inside a macOS or browser window frame.
+
+![Beautify backdrop](docs/beautify.png)
+
+Everything is driven from the **Backdrop** panel: a background preset grid (gradients or solids), padding and corner-radius sliders, the window frame (None / macOS / Browser), a drop-shadow toggle, and an aspect ratio (Auto / 1:1 / 16:9 / 4:3) that pads the short side to hit the target shape.
+
+It's **non-destructive**, exactly like Crop — the backdrop lives in document state, survives undo/redo and tab switches, and is only baked into the pixels on **Copy** / **Save** (at native resolution, with your annotations on top). Annotations stay glued to the screenshot, not the backdrop. (Backdrop and Crop are mutually exclusive for now.)
+
+## Screen recording
+
+Record a slice of your screen to a video file — the capture Windows' tool doesn't do at all:
+
+1. Pick a format from the **Record** dropdown (caret next to the button): **MP4** or **GIF**, at **10 / 20 / 30 fps**
+2. Click **Record** and **drag a rectangle** over the area to capture
+3. A small toolbar appears with an elapsed timer; a red outline frames exactly what's being recorded
+4. Click **Stop** (or press `Esc`) to save, or **discard** to throw it away
+
+The mouse cursor is captured in the video. Files land in your save directory as `snippr_rec_<timestamp>.mp4`; choosing **GIF** writes the `.gif` *and* keeps the MP4. Recordings stop themselves after 10 minutes.
+
 ## Scrolling capture
 
 For content taller than the screen — long pages, chat logs, code files — snippr can capture the whole thing as a single image (the one capture the native Snipping Tool can't do):
@@ -72,7 +98,7 @@ Frames are joined by matching pixel rows between captures, ignoring the side mar
 |-----|--------|
 | `1` `2` `3` `4` `5` | Line, Rectangle, Arrow, Text, Pen |
 | `V` | Select / move |
-| `E` `H` `B` `X` `C` | Ellipse, Highlighter, Badge, Pixelate, Crop |
+| `E` `H` `B` `X` `C` `G` | Ellipse, Highlighter, Badge, Pixelate, Crop, Backdrop |
 | `Ctrl+C` / `Ctrl+Enter` | Copy annotated image to clipboard |
 | `Ctrl+V` | Paste an image — new tab, or image layer when a doc is open |
 | `Ctrl+S` | Save As… |
@@ -118,9 +144,11 @@ The installer is unsigned — SmartScreen will warn on first run (`More info →
 ## Architecture
 
 - **Backend (Rust / Tauri 2):** a Win32 message-only window registered with `AddClipboardFormatListener` watches the clipboard. New images are attributed via `GetClipboardOwner` → process name (`ScreenClippingHost.exe` / `SnippingTool.exe`), debounced (the Snipping Tool writes the clipboard once per format), PNG-encoded, and handed to the frontend over raw binary IPC. Exports flow back the same way; a feedback-loop guard keeps snippr's own clipboard writes from re-triggering the watcher.
-- **Scrolling capture:** a transparent always-on-top overlay window hosts the region selector; a Rust thread then drives the target with `SendInput` mouse-wheel events, grabs frames via GDI `BitBlt`, and stitches them with a row-matching algorithm ported from [ShareX](https://github.com/ShareX/ShareX)'s scrolling capture (side margins ignored, sticky footers deduplicated, stop on two identical frames). `Esc` is a thread-level `RegisterHotKey`. The stitcher is covered by unit tests against synthetic scroll sequences.
-- **Frontend (React 19 + Konva):** the screenshot is the bottom layer of a Konva stage; annotations are plain data rendered declaratively, with snapshot-based undo/redo in a zustand store. Export resets the stage transform and rasterizes at native resolution.
+- **Region overlays:** scrolling capture, "add screenshot", and recording all share one transparent always-on-top overlay (one window per monitor for mixed-DPI correctness) that hosts the region selector and reports which mode it's in.
+- **Scrolling capture:** a Rust thread drives the target with `SendInput` mouse-wheel events, grabs frames via GDI `BitBlt`, and stitches them with a row-matching algorithm ported from [ShareX](https://github.com/ShareX/ShareX)'s scrolling capture (side margins ignored, sticky footers deduplicated, stop on two identical frames). `Esc` is a thread-level `RegisterHotKey`. The stitcher is covered by unit tests against synthetic scroll sequences.
+- **Screen recording:** a recorder thread captures the region via GDI `BitBlt` (compositing the cursor with `DrawIconEx`) and encodes H.264 to MP4 through a Media Foundation `SinkWriter`, paced to constant frame rate by wall-clock index so stalls drop frames instead of slowing playback. GIF output is a second pass: the finished MP4 is decoded with an MF `SourceReader` and re-encoded via the `gif` crate. Frames are fed top-down with a positive stride — the encoder MFT ignores the stride-sign hint, so that orientation is verified against a real decoder, not a self-consistent MF round-trip.
+- **Frontend (React 19 + Konva):** the screenshot is the bottom layer of a Konva stage; annotations are plain data rendered declaratively, with snapshot-based undo/redo in a zustand store. The non-destructive **crop** and **Beautify backdrop** are document state (parked per tab, in undo history), composed only at export. Export resets the stage transform and rasterizes at native resolution.
 
 ### README screenshots
 
-The screenshots above are generated from the web build: `npm run dev`, then open `http://localhost:1420/?demo=1` (dev-only demo mode that loads a synthetic screenshot plus sample annotations).
+The screenshots above are generated from the web build: `npm run dev`, then open `http://localhost:1420/?demo=1` (dev-only demo mode that loads a synthetic screenshot plus sample annotations). Add `&backdrop=1` to show the Beautify backdrop (used for `docs/beautify.png`).
