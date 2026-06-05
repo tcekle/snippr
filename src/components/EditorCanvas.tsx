@@ -34,6 +34,9 @@ export function EditorCanvas() {
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [inProgress, setInProgress] = useState<InProgress>(null);
+  // Ctrl = temporary move tool (Photoshop-style): annotations become
+  // interactive/draggable while held, and draw tools pause.
+  const [ctrlDown, setCtrlDown] = useState(false);
   const isDrawing = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const spaceDown = useRef(false);
@@ -117,6 +120,9 @@ export function EditorCanvas() {
     }
 
     if (e.evt.button !== 0) return;
+
+    // Ctrl-click falls through to the shape's own drag handling — never draw
+    if (e.evt.ctrlKey && activeTool !== 'select') return;
 
     const pos = getPointerPos();
     dragStartPos.current = pos;
@@ -209,7 +215,7 @@ export function EditorCanvas() {
     // Create text here (not on pointerdown): focus only moves on mousedown,
     // so a textarea mounted after the release keeps focus and typing starts
     // immediately.
-    if (activeTool === 'text' && e.evt.button === 0) {
+    if (activeTool === 'text' && e.evt.button === 0 && !e.evt.ctrlKey) {
       const pos = getPointerPos();
       const id = nanoid();
       addAnnotation({
@@ -320,10 +326,11 @@ export function EditorCanvas() {
     }
   }, [view, setView]);
 
-  // Space key for panning + Esc cancels an in-progress draw
+  // Space key for panning, Ctrl as temporary move tool, Esc cancels a draw
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') spaceDown.current = true;
+      if (e.key === 'Control') setCtrlDown(true);
       if (e.key === 'Escape' && isDrawing.current) {
         isDrawing.current = false;
         setInProgress(null);
@@ -331,12 +338,17 @@ export function EditorCanvas() {
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') { spaceDown.current = false; isPanning.current = false; }
+      if (e.key === 'Control') setCtrlDown(false);
     };
+    // Alt-tab with Ctrl held would leave the flag stuck
+    const onBlur = () => setCtrlDown(false);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, []);
 
@@ -469,6 +481,7 @@ export function EditorCanvas() {
 
   const getCursor = () => {
     if (spaceDown.current || isPanning.current) return 'grabbing';
+    if (ctrlDown && activeTool !== 'select') return 'default';
     if (activeTool === 'select') return 'default';
     if (activeTool === 'text') return 'text';
     if (activeTool === 'crop') return 'crosshair';
@@ -540,8 +553,10 @@ export function EditorCanvas() {
           )}
         </Layer>
 
-        {/* Layer 2: Annotations */}
-        <Layer>
+        {/* Layer 2: Annotations — only interactive with the select tool (or
+            Ctrl held as a temporary move tool); otherwise strokes that start
+            on top of a shape must draw, not drag it. */}
+        <Layer listening={activeTool === 'select' || ctrlDown}>
           {annotations.map(renderAnnotation)}
         </Layer>
 
