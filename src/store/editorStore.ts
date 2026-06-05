@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import type { Annotation, ToolType } from '../types/annotations';
 import type { BackdropConfig } from '../types/backdrop';
 import { DEFAULT_BACKDROP } from '../types/backdrop';
+import { DEFAULT_BOARD } from '../types/board';
 
 export interface SnipprSettings {
   saveDirectory: string;
@@ -35,6 +36,7 @@ interface ViewState {
 /** Everything that belongs to one snip document (parked when its tab is inactive). */
 interface DocSnapshot {
   screenshot: ScreenshotState;
+  boardBackground: string | null;
   annotations: Annotation[];
   history: HistoryEntry[];
   future: HistoryEntry[];
@@ -52,6 +54,7 @@ export interface TabInfo {
 
 const EMPTY_DOC = {
   screenshot: { url: null, width: 0, height: 0, imageEl: null } as ScreenshotState,
+  boardBackground: null as string | null,
   annotations: [] as Annotation[],
   history: [] as HistoryEntry[],
   future: [] as HistoryEntry[],
@@ -64,6 +67,7 @@ const EMPTY_DOC = {
 function snapshotActive(state: EditorState): DocSnapshot {
   return {
     screenshot: state.screenshot,
+    boardBackground: state.boardBackground,
     annotations: state.annotations,
     history: state.history,
     future: state.future,
@@ -83,6 +87,7 @@ function parkActive(state: EditorState): TabInfo[] {
 
 interface EditorState {
   screenshot: ScreenshotState;
+  boardBackground: string | null;
   annotations: Annotation[];
   selectedId: string | null;
   history: HistoryEntry[];
@@ -108,6 +113,10 @@ interface EditorState {
 interface EditorActions {
   /** New snip arrives: park the current tab (if any) and open a fresh one. */
   addTab: (url: string, w: number, h: number, imageEl: HTMLImageElement) => void;
+  /** Open a fresh blank board tab (no image; page size from opts or defaults). */
+  newBoard: (opts?: { width?: number; height?: number; background?: string }) => void;
+  setBoardBackground: (color: string) => void;
+  setBoardSize: (width: number, height: number) => void;
   switchTab: (id: string) => void;
   closeTab: (id: string) => void;
   addAnnotation: (anno: Annotation) => void;
@@ -149,6 +158,7 @@ function pushHistoryEntry(state: EditorState): Pick<EditorState, 'history' | 'fu
 
 export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   screenshot: { url: null, width: 0, height: 0, imageEl: null },
+  boardBackground: null,
   annotations: [],
   selectedId: null,
   history: [],
@@ -182,6 +192,31 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
       };
     });
   },
+
+  newBoard: (opts) => {
+    set((state) => {
+      const tabs = parkActive(state);
+      const id = nanoid();
+      const width = opts?.width ?? DEFAULT_BOARD.width;
+      const height = opts?.height ?? DEFAULT_BOARD.height;
+      const background = opts?.background ?? DEFAULT_BOARD.background;
+      return {
+        tabs: [...tabs, { id, label: `Board ${state.nextTabNum}`, doc: null }],
+        nextTabNum: state.nextTabNum + 1,
+        activeTabId: id,
+        ...EMPTY_DOC,
+        screenshot: { url: null, width, height, imageEl: null },
+        boardBackground: background,
+        activeTool: 'pen',
+        fitNonce: state.fitNonce + 1, // force re-fit (screenshot.url is null for both empty and board)
+      };
+    });
+  },
+
+  setBoardBackground: (color) => set({ boardBackground: color }),
+
+  setBoardSize: (width, height) =>
+    set((state) => ({ screenshot: { ...state.screenshot, width, height }, fitNonce: state.fitNonce + 1 })),
 
   switchTab: (id) => {
     set((state) => {

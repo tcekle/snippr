@@ -8,7 +8,7 @@ interface Props {
 }
 
 export function StatusBar({ onFit, onZoomIn, onZoomOut }: Props) {
-  const { screenshot, view, activeTool } = useEditorStore();
+  const { screenshot, view, activeTool, boardBackground } = useEditorStore();
 
   const hints: Record<string, string> = {
     select: 'Click to select · Drag to move',
@@ -40,7 +40,7 @@ export function StatusBar({ onFit, onZoomIn, onZoomOut }: Props) {
       fontSize: 12, color: 'var(--color-text-muted)',
       flexShrink: 0,
     }}>
-      {screenshot.imageEl && (
+      {(screenshot.imageEl || boardBackground !== null) && (
         <span style={{ flexShrink: 0 }}>{screenshot.width} × {screenshot.height}</span>
       )}
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
