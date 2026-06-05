@@ -38,6 +38,9 @@ export function EditorCanvas() {
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [inProgress, setInProgress] = useState<InProgress>(null);
+  // Composition bounds = the doc/backdrop box grown to wrap any annotations that
+  // spill outside it, so the page auto-sizes around them (matches export bounds).
+  const [contentBounds, setContentBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   // Ctrl = temporary move tool (Photoshop-style): annotations become
   // interactive/draggable while held, and draw tools pause.
   const [ctrlDown, setCtrlDown] = useState(false);
@@ -79,13 +82,43 @@ export function EditorCanvas() {
     return () => ro.disconnect();
   }, []);
 
-  // Fit to window on new screenshot, container resize, or explicit fit request (Ctrl+0 / Fit button).
-  // With a backdrop active, fit the whole padded composition (its origin is negative).
+  // The base box is the screenshot/board page, or the padded backdrop composition.
+  const baseBounds = useCallback(
+    () => backdrop
+      ? backdropBounds(screenshot.width, screenshot.height, backdrop)
+      : { x: 0, y: 0, width: screenshot.width, height: screenshot.height },
+    [backdrop, screenshot.width, screenshot.height]
+  );
+
+  // Base box grown to wrap any committed annotations (layer 1) that spill outside
+  // it, so the page auto-sizes around them. getClientRect(relativeTo: stage) is in
+  // document space (the stage transform cancels out), so it's zoom/pan-independent.
+  // Returns the base unchanged when everything is inside.
+  const measureContentBounds = useCallback(() => {
+    const base = baseBounds();
+    const stage = stageRef.current;
+    if (!stage) return base;
+    const annoLayer = stage.getLayers()[1];
+    const a = annoLayer?.getClientRect({ relativeTo: stage });
+    if (!a || a.width === 0 || a.height === 0) return base;
+    const minX = Math.floor(Math.min(base.x, a.x));
+    const minY = Math.floor(Math.min(base.y, a.y));
+    const maxX = Math.ceil(Math.max(base.x + base.width, a.x + a.width));
+    const maxY = Math.ceil(Math.max(base.y + base.height, a.y + a.height));
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }, [baseBounds]);
+
+  // Track the grown bounds as annotations change — used to grow the board page fill.
+  useEffect(() => {
+    setContentBounds(hasDoc ? measureContentBounds() : null);
+  }, [annotations, measureContentBounds, hasDoc]);
+
+  // Fit on new doc, container resize, or explicit fit (Ctrl+0 / Fit). Frames the
+  // whole composition incl. out-of-page annotations. Deliberately NOT triggered by
+  // drawing, so committing an annotation never yanks the user's zoom/pan.
   useEffect(() => {
     if (!hasDoc || containerSize.width === 0 || containerSize.height === 0) return;
-    const bounds = backdrop
-      ? backdropBounds(screenshot.width, screenshot.height, backdrop)
-      : { x: 0, y: 0, width: screenshot.width, height: screenshot.height };
+    const bounds = measureContentBounds();
     const scale = Math.min(
       containerSize.width / bounds.width,
       containerSize.height / bounds.height,
@@ -94,7 +127,7 @@ export function EditorCanvas() {
     const x = (containerSize.width - bounds.width * scale) / 2 - bounds.x * scale;
     const y = (containerSize.height - bounds.height * scale) / 2 - bounds.y * scale;
     setView({ scale, x, y });
-  }, [screenshot.url, screenshot.width, screenshot.height, containerSize.width, containerSize.height, fitNonce, backdrop, hasDoc]);
+  }, [screenshot.url, containerSize.width, containerSize.height, fitNonce, hasDoc, measureContentBounds]);
 
   // Update transformer on selection change
   useEffect(() => {
@@ -308,10 +341,16 @@ export function EditorCanvas() {
       const size = Math.max(inProgress.width, inProgress.height);
       const zoom = 2.5;
       const lensSide = size * zoom;
+      const srcX = inProgress.x, srcY = inProgress.y;
+      // Place the lens centered over the source, above it (or below if there's no
+      // room above). It may extend past the image edge — the canvas auto-grows to
+      // include it, so it stays visible and is baked into the export.
+      const lx = Math.max(0, srcX + size / 2 - lensSide / 2);
+      const ly = srcY - lensSide - 24 >= 0 ? srcY - lensSide - 24 : srcY + size + 24;
       committed = {
         id: nanoid(), type: 'loupe',
-        srcX: inProgress.x, srcY: inProgress.y, size,
-        x: inProgress.x, y: Math.max(0, inProgress.y - lensSide - 24),
+        srcX, srcY, size,
+        x: lx, y: ly,
         zoom, shape: 'circle',
         borderColor: strokeColor, borderWidth: 3,
         showSource: true, connector: true,
@@ -612,9 +651,10 @@ export function EditorCanvas() {
               so the dark editor / dot grid shows through and export keeps alpha. */}
           {isBoard && boardBackground !== 'transparent' && (
             <Rect
-              x={0} y={0}
-              width={screenshot.width}
-              height={screenshot.height}
+              x={contentBounds?.x ?? 0}
+              y={contentBounds?.y ?? 0}
+              width={contentBounds?.width ?? screenshot.width}
+              height={contentBounds?.height ?? screenshot.height}
               fill={boardBackground!}
               listening={false}
             />
