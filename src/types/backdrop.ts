@@ -28,6 +28,16 @@ export const BACKDROP_PRESETS: BackdropPreset[] = [
   { label: 'Amber',  fill: { kind: 'gradient', from: '#FEB034', to: '#B35D00', angle: 135 } },
 ];
 
+// The original snippr backdrop palette, kept alongside the brand presets.
+export const CLASSIC_BACKDROP_PRESETS: BackdropPreset[] = [
+  { label: 'Sunset', fill: { kind: 'gradient', from: '#ffd5a8', to: '#a78bfa', angle: 135 } },
+  { label: 'Ocean',  fill: { kind: 'gradient', from: '#0ea5e9', to: '#6366f1', angle: 135 } },
+  { label: 'Mint',   fill: { kind: 'gradient', from: '#34d399', to: '#0ea5e9', angle: 135 } },
+  { label: 'Slate',  fill: { kind: 'solid', color: '#1e1e28' } },
+  { label: 'Light',  fill: { kind: 'solid', color: '#f1f1f4' } },
+  { label: 'Coral',  fill: { kind: 'gradient', from: '#fb7185', to: '#f59e0b', angle: 135 } },
+];
+
 export const DEFAULT_BACKDROP: BackdropConfig = {
   padding: 64,
   fill: BACKDROP_PRESETS[0].fill,

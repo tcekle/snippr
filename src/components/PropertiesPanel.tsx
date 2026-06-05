@@ -4,10 +4,12 @@ import { useEditorStore } from '../store/editorStore';
 import type { Annotation } from '../types/annotations';
 import {
   BACKDROP_PRESETS,
+  CLASSIC_BACKDROP_PRESETS,
   DEFAULT_BACKDROP,
   fillsEqual,
   type AspectMode,
   type BackdropFill,
+  type BackdropPreset,
   type FrameStyle,
 } from '../types/backdrop';
 import { BOARD_BACKGROUNDS, BOARD_SIZES } from '../types/board';
@@ -386,24 +388,34 @@ function BackdropControls() {
   if (activeTool !== 'backdrop') return null;
   const b = backdrop ?? DEFAULT_BACKDROP;
 
-  const customSelected = !BACKDROP_PRESETS.some((p) => fillsEqual(b.fill, p.fill)) && b.fill.kind === 'solid';
+  const allPresets = [...BACKDROP_PRESETS, ...CLASSIC_BACKDROP_PRESETS];
+  const customSelected = !allPresets.some((p) => fillsEqual(b.fill, p.fill)) && b.fill.kind === 'solid';
+
+  const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 } as const;
+  const captionStyle = { fontSize: 10.5, color: 'var(--color-text-muted)', marginTop: 8 } as const;
+  const swatch = (p: BackdropPreset, key: React.Key) => (
+    <button key={key} onClick={() => setBackdrop({ fill: p.fill })} title={p.label}
+      style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
+      <div style={{
+        width: '100%', aspectRatio: '1.3', borderRadius: 6, background: fillToCss(p.fill),
+        border: fillsEqual(b.fill, p.fill) ? '2px solid var(--color-accent)' : '2px solid transparent',
+        boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)',
+      }} />
+      <div style={{ fontSize: 8.5, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 3 }}>{p.label}</div>
+    </button>
+  );
 
   return (
     <>
       <div>
         <Label>Backdrop</Label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-          {BACKDROP_PRESETS.map((p, i) => (
-            <button key={i} onClick={() => setBackdrop({ fill: p.fill })} title={p.label}
-              style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
-              <div style={{
-                width: '100%', aspectRatio: '1.3', borderRadius: 6, background: fillToCss(p.fill),
-                border: fillsEqual(b.fill, p.fill) ? '2px solid var(--color-accent)' : '2px solid transparent',
-                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)',
-              }} />
-              <div style={{ fontSize: 8.5, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 3 }}>{p.label}</div>
-            </button>
-          ))}
+        <div style={gridStyle}>{BACKDROP_PRESETS.map((p, i) => swatch(p, `dio-${i}`))}</div>
+        <div style={captionStyle}>Data I/O brand palette</div>
+
+        <div style={{ ...gridStyle, marginTop: 10 }}>{CLASSIC_BACKDROP_PRESETS.map((p, i) => swatch(p, `cl-${i}`))}</div>
+        <div style={captionStyle}>Classic</div>
+
+        <div style={{ ...gridStyle, marginTop: 10 }}>
           {/* Custom solid-color tile */}
           <button onClick={() => setCustomOpen(!customOpen)} title="Custom color…"
             style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}>
@@ -432,7 +444,6 @@ function BackdropControls() {
             </div>
           </div>
         )}
-        <div style={{ fontSize: 10.5, color: 'var(--color-text-muted)', marginTop: 8 }}>Data I/O brand palette</div>
       </div>
 
       <div>
