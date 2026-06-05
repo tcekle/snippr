@@ -130,6 +130,7 @@ export function PropertiesPanel() {
       <PixelSizeControl />
       <BadgeNumberControl />
       <LoupeControls />
+      <SpotlightControls />
       <BackdropControls />
     </div>
   );
@@ -266,6 +267,54 @@ function Label({ children }: { children: React.ReactNode }) {
     <div style={{ color: 'var(--color-text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
       {children}
     </div>
+  );
+}
+
+function SpotlightControls() {
+  const { selectedId, annotations, activeTool, updateAnnotation } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  const sp = selected?.type === 'spotlight' ? selected : null;
+  if (activeTool !== 'spotlight' && !sp) return null;
+
+  const set = (p: Partial<Extract<Annotation, { type: 'spotlight' }>>, push = false) => {
+    if (sp) updateAnnotation(sp.id, p, push);
+  };
+  const seg = (opts: string[], val: string, on: (v: string) => void) => (
+    <div style={{ display: 'flex', gap: 4, background: 'var(--color-elevated)', borderRadius: 7, padding: 3 }}>
+      {opts.map((o) => (
+        <button key={o} onClick={() => on(o)} style={{
+          flex: 1, border: 'none', cursor: 'pointer', borderRadius: 5, padding: '5px 0',
+          fontSize: 11.5, fontWeight: 600,
+          background: o.toLowerCase() === val ? 'var(--color-accent)' : 'transparent',
+          color: o.toLowerCase() === val ? '#fff' : 'var(--color-text-muted)',
+        }}>{o}</button>
+      ))}
+    </div>
+  );
+
+  return (
+    <>
+      <div>
+        <Label>Dim Amount</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="range" min={0} max={90} value={Math.round((sp?.dim ?? 0.62) * 100)}
+            onChange={(e) => set({ dim: Number(e.target.value) / 100 }, false)}
+            style={{ flex: 1, accentColor: 'var(--color-accent)' }} />
+          <span style={{ fontSize: 13, minWidth: 30 }}>{Math.round((sp?.dim ?? 0.62) * 100)}%</span>
+        </div>
+      </div>
+      <div><Label>Shape</Label>{seg(['Rect', 'Ellipse'], sp?.shape ?? 'rect', (v) => set({ shape: v as 'rect' | 'ellipse' }, true))}</div>
+      <div>
+        <Label>Feather</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="range" min={0} max={40} value={sp?.feather ?? 10}
+            onChange={(e) => set({ feather: Number(e.target.value) }, false)}
+            style={{ flex: 1, accentColor: 'var(--color-accent)' }} />
+          <span style={{ fontSize: 13, minWidth: 24 }}>{sp?.feather ?? 10}</span>
+        </div>
+      </div>
+      <ToggleRow label="Invert (dim inside)" on={sp?.invert ?? false} onToggle={() => set({ invert: !sp?.invert }, true)} />
+    </>
   );
 }
 

@@ -4,7 +4,7 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno, LoupeAnno } from '../types/annotations';
+import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno, LoupeAnno, SpotlightAnno } from '../types/annotations';
 import { shapePoints, isShapeTool } from '../utils/shapeGeometry';
 import { RectShape } from './annotations/RectShape';
 import { PolyShape } from './annotations/PolyShape';
@@ -17,6 +17,7 @@ import { TextShape } from './annotations/TextShape';
 import { BadgeShape } from './annotations/BadgeShape';
 import { PixelateShape } from './annotations/PixelateShape';
 import { LoupeShape } from './annotations/LoupeShape';
+import { SpotlightShape } from './annotations/SpotlightShape';
 import { ImageShape } from './annotations/ImageShape';
 import { Backdrop } from './Backdrop';
 import { backdropBounds } from '../utils/backdropGeometry';
@@ -24,7 +25,7 @@ import { buildPixelateCanvas } from '../utils/buildPixelateCanvas';
 import { TextEditOverlay } from './TextEditOverlay';
 
 type InProgress =
-  | { type: 'rect' | 'pixelate' | 'loupe'; x: number; y: number; width: number; height: number }
+  | { type: 'rect' | 'pixelate' | 'loupe' | 'spotlight'; x: number; y: number; width: number; height: number }
   | { type: 'shape'; shape: ShapeKind; x: number; y: number; width: number; height: number }
   | { type: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number }
   | { type: 'arrow' | 'line'; points: number[] }
@@ -166,7 +167,7 @@ export function EditorCanvas() {
     isDrawing.current = true;
     setSelectedId(null); // starting a new draw drops any prior selection
 
-    if (activeTool === 'rect' || activeTool === 'pixelate' || activeTool === 'loupe') {
+    if (activeTool === 'rect' || activeTool === 'pixelate' || activeTool === 'loupe' || activeTool === 'spotlight') {
       setInProgress({ type: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
     } else if (isShapeTool(activeTool)) {
       setInProgress({ type: 'shape', shape: activeTool, x: pos.x, y: pos.y, width: 0, height: 0 });
@@ -192,7 +193,7 @@ export function EditorCanvas() {
     if (!isDrawing.current || !inProgress) return;
     const pos = getPointerPos();
 
-    if (inProgress.type === 'rect' || inProgress.type === 'pixelate' || inProgress.type === 'loupe' || inProgress.type === 'shape') {
+    if (inProgress.type === 'rect' || inProgress.type === 'pixelate' || inProgress.type === 'loupe' || inProgress.type === 'spotlight' || inProgress.type === 'shape') {
       setInProgress({
         ...inProgress,
         x: Math.min(pos.x, dragStartPos.current.x),
@@ -310,6 +311,12 @@ export function EditorCanvas() {
         borderColor: strokeColor, borderWidth: 3,
         showSource: true, connector: true,
       } satisfies LoupeAnno;
+    } else if (activeTool === 'spotlight' && inProgress.type === 'spotlight' && inProgress.width > 8 && inProgress.height > 8) {
+      committed = {
+        id: nanoid(), type: 'spotlight',
+        x: inProgress.x, y: inProgress.y, width: inProgress.width, height: inProgress.height,
+        shape: 'rect', dim: 0.62, feather: 10, invert: false,
+      } satisfies SpotlightAnno;
     }
     if (committed) {
       addAnnotation(committed);
@@ -399,6 +406,12 @@ export function EditorCanvas() {
         x: node.x(), y: node.y(),
         radius: Math.max(8, (anno as BadgeAnno).radius * sx),
       } as Partial<typeof anno>, true);
+    } else if (anno.type === 'spotlight') {
+      updateAnnotation(anno.id, {
+        x: node.x(), y: node.y(),
+        width: Math.max(8, (anno as SpotlightAnno).width * sx),
+        height: Math.max(8, (anno as SpotlightAnno).height * sy),
+      } as Partial<typeof anno>, true);
     } else if (anno.type === 'arrow' || anno.type === 'line' || anno.type === 'pen' || anno.type === 'highlight') {
       const a = anno as ArrowAnno | LineAnno | PenAnno | HighlightAnno;
       const nx = node.x();
@@ -460,6 +473,11 @@ export function EditorCanvas() {
         return <LoupeShape key={anno.id} anno={anno} imageEl={screenshot.imageEl} selected={sel}
           onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<LoupeAnno>, h)} />;
+      case 'spotlight':
+        return <SpotlightShape key={anno.id} anno={anno}
+          docW={screenshot.width} docH={screenshot.height}
+          selected={sel} onSelect={onSelect}
+          onChange={(p, h) => updateAnnotation(anno.id, p as Partial<SpotlightAnno>, h)} />;
       case 'image':
         return <ImageShape key={anno.id} anno={anno} selected={sel} onSelect={onSelect}
           onChange={(p, h) => updateAnnotation(anno.id, p as Partial<ImageAnno>, h)} />;
@@ -604,12 +622,12 @@ export function EditorCanvas() {
         <Layer listening={false}>
           {inProgress && activeTool !== 'crop' && (
             <>
-              {(inProgress.type === 'rect' || inProgress.type === 'loupe') && (
+              {(inProgress.type === 'rect' || inProgress.type === 'loupe' || inProgress.type === 'spotlight') && (
                 <Rect
-                  x={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).x}
-                  y={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).y}
-                  width={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).width}
-                  height={(inProgress as { type: 'rect' | 'loupe'; x: number; y: number; width: number; height: number }).height}
+                  x={(inProgress as { type: 'rect' | 'loupe' | 'spotlight'; x: number; y: number; width: number; height: number }).x}
+                  y={(inProgress as { type: 'rect' | 'loupe' | 'spotlight'; x: number; y: number; width: number; height: number }).y}
+                  width={(inProgress as { type: 'rect' | 'loupe' | 'spotlight'; x: number; y: number; width: number; height: number }).width}
+                  height={(inProgress as { type: 'rect' | 'loupe' | 'spotlight'; x: number; y: number; width: number; height: number }).height}
                   stroke={strokeColor} strokeWidth={strokeWidth} fill="transparent"
                 />
               )}

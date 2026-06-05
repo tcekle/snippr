@@ -27,6 +27,7 @@ export function StatusBar({ onFit, onZoomIn, onZoomOut }: Props) {
     crop: 'Drag to crop · Enter to confirm · Esc to cancel',
     backdrop: 'Backdrop · adjust padding, frame and background in the panel',
     loupe: 'Magnifier · drag over a detail to magnify it',
+    spotlight: 'Spotlight · drag the region to keep lit',
   };
 
   const hint = hints[activeTool] ?? '';

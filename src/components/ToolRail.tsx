@@ -40,6 +40,7 @@ const RAIL: RailEntry[] = [
   { variants: [{ tool: 'crop', label: 'Crop', hotkey: 'C', icon: <CropIcon /> }] },
   { variants: [{ tool: 'backdrop', label: 'Backdrop', hotkey: 'G', icon: <BackdropIcon /> }] },
   { variants: [{ tool: 'loupe', label: 'Magnifier', hotkey: 'Z', icon: <LoupeIcon /> }] },
+  { variants: [{ tool: 'spotlight', label: 'Spotlight', hotkey: 'O', icon: <SpotlightIcon /> }] },
 ];
 
 const LONG_PRESS_MS = 350;
@@ -415,6 +416,16 @@ function LoupeIcon() {
       <line x1="11.2" y1="11.2" x2="16" y2="16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       <line x1="7.5" y1="5.4" x2="7.5" y2="9.6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <line x1="5.4" y1="7.5" x2="9.6" y2="7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SpotlightIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="9" r="3.4" fill="currentColor" />
+      <circle cx="9" cy="9" r="6.6" stroke="currentColor" strokeWidth="1.4" opacity="0.45" />
+      <path d="M9 1v1.6M9 15.4V17M1 9h1.6M15.4 9H17" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,6 +1,6 @@
 /** Polygon variants living under the shape-tool flyout (rect/ellipse have their own anno types). */
 export type ShapeKind = 'triangle'|'diamond'|'star';
-export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|'loupe'|ShapeKind;
+export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|'loupe'|'spotlight'|ShapeKind;
 
 type Base = { id: string; };
 export type RectAnno      = Base & { type:'rect'; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
@@ -24,4 +24,5 @@ export type LoupeAnno     = Base & {
   showSource:boolean;
   connector:boolean;
 };
-export type Annotation = RectAnno|ShapeAnno|EllipseAnno|ArrowAnno|LineAnno|PenAnno|HighlightAnno|TextAnno|BadgeAnno|PixelateAnno|ImageAnno|LoupeAnno;
+export type SpotlightAnno = Base & { type:'spotlight'; x:number; y:number; width:number; height:number; shape:'rect'|'ellipse'; dim:number; feather:number; invert:boolean };
+export type Annotation = RectAnno|ShapeAnno|EllipseAnno|ArrowAnno|LineAnno|PenAnno|HighlightAnno|TextAnno|BadgeAnno|PixelateAnno|ImageAnno|LoupeAnno|SpotlightAnno;

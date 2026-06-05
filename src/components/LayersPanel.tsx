@@ -16,6 +16,7 @@ function describe(anno: Annotation): string {
     case 'pixelate':  return 'Pixelate';
     case 'image':     return 'Image';
     case 'loupe':     return 'Magnifier';
+    case 'spotlight': return 'Spotlight';
   }
 }
 
@@ -166,6 +167,13 @@ function AnnotationPreview({ anno }: { anno: Annotation }) {
         <svg {...box}>
           <circle cx={PV_W / 2 - 1} cy={PV_H / 2 - 1} r={6} stroke={anno.borderColor} strokeWidth={1.5} fill="none" />
           <line x1={PV_W / 2 + 3} y1={PV_H / 2 + 3} x2={PV_W / 2 + 8} y2={PV_H / 2 + 7} stroke={anno.borderColor} strokeWidth={1.5} />
+        </svg>
+      );
+    case 'spotlight':
+      return (
+        <svg {...box}>
+          <rect x={1} y={1} width={PV_W - 2} height={PV_H - 2} fill="#000" opacity={0.55} rx={2} />
+          <rect x={PV_W / 2 - 5} y={PV_H / 2 - 4} width={10} height={8} fill="#fff" opacity={0.9} rx={1.5} />
         </svg>
       );
   }
