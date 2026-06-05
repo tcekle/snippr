@@ -150,10 +150,45 @@ export async function maybeLoadDemo(): Promise<void> {
   s.addAnnotation({ id: nanoid(), type: 'pixelate', x: 278, y: 412, width: 330, height: 28, pixelSize: 10 });
   s.setSelectedId(null);
 
+  const params = new URLSearchParams(location.search);
+
   // `?demo=1&backdrop=1` also turns the Beautify backdrop on (default config)
   // and selects the Backdrop tool so its panel section is visible.
-  if (new URLSearchParams(location.search).has('backdrop')) {
+  if (params.has('backdrop')) {
     s.setBackdrop({});
     s.setTool('backdrop');
+  }
+
+  // `?demo=1&zoom=1` drops a Magnifier loupe over a chart detail (circular lens,
+  // white border + shadow, dashed source outline + connector) and selects the tool.
+  if (params.has('zoom')) {
+    s.addAnnotation({
+      id: nanoid(), type: 'loupe',
+      srcX: 580, srcY: 250, size: 90,
+      x: 720, y: 120, zoom: 2.6, shape: 'circle',
+      borderColor: '#ffffff', borderWidth: 3,
+      showSource: true, connector: true,
+    });
+    s.setTool('loupe');
+    s.requestFit();
+  }
+
+  // `?demo=1&board=1` opens a blank whiteboard with a small diagram, where one note
+  // spills past the right edge of the page — the white page auto-grows around it.
+  if (params.has('board')) {
+    s.newBoard({ width: 1600, height: 900, background: '#ffffff' });
+    const ink = '#1e1e28';
+    s.addAnnotation({ id: nanoid(), type: 'text', x: 130, y: 90, text: 'Release plan', fontSize: 46, fill: ink });
+    s.addAnnotation({ id: nanoid(), type: 'rect', x: 150, y: 240, width: 300, height: 140, stroke: '#007aff', strokeWidth: 5 });
+    s.addAnnotation({ id: nanoid(), type: 'text', x: 205, y: 295, text: 'Design', fontSize: 32, fill: ink });
+    s.addAnnotation({ id: nanoid(), type: 'arrow', points: [470, 310, 700, 310], stroke: ink, strokeWidth: 5 });
+    s.addAnnotation({ id: nanoid(), type: 'rect', x: 720, y: 240, width: 300, height: 140, stroke: '#34c759', strokeWidth: 5 });
+    s.addAnnotation({ id: nanoid(), type: 'text', x: 790, y: 295, text: 'Build', fontSize: 32, fill: ink });
+    // Spills past the 1600px page edge → page grows to wrap it.
+    s.addAnnotation({ id: nanoid(), type: 'rect', x: 1460, y: 360, width: 360, height: 210, stroke: '#ff3b30', strokeWidth: 6 });
+    s.addAnnotation({ id: nanoid(), type: 'text', x: 1500, y: 440, text: 'Ships outside!', fontSize: 30, fill: '#ff3b30' });
+    s.setTool('select');
+    s.setSelectedId(null);
+    s.requestFit();
   }
 }
