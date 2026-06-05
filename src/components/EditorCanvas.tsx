@@ -47,11 +47,16 @@ export function EditorCanvas() {
 
   const store = useEditorStore();
   const {
-    screenshot, annotations, selectedId, activeTool, strokeColor, strokeWidth, fontSize,
+    screenshot, boardBackground, annotations, selectedId, activeTool, strokeColor, strokeWidth, fontSize,
     editingTextId, view, cropRect, backdrop, fitNonce,
     addAnnotation, updateAnnotation, setSelectedId, setEditingTextId,
-    setView, setCropRect, setStageRef,
+    setView, setCropRect, setStageRef, newBoard,
   } = store;
+
+  // A board is a doc with a background but no image; treat it as a real document
+  // everywhere the canvas used to require screenshot.imageEl.
+  const isBoard = boardBackground !== null;
+  const hasDoc = !!screenshot.imageEl || isBoard;
 
   // Register stage ref
   useEffect(() => {
@@ -75,7 +80,7 @@ export function EditorCanvas() {
   // Fit to window on new screenshot, container resize, or explicit fit request (Ctrl+0 / Fit button).
   // With a backdrop active, fit the whole padded composition (its origin is negative).
   useEffect(() => {
-    if (!screenshot.imageEl || containerSize.width === 0 || containerSize.height === 0) return;
+    if (!hasDoc || containerSize.width === 0 || containerSize.height === 0) return;
     const bounds = backdrop
       ? backdropBounds(screenshot.width, screenshot.height, backdrop)
       : { x: 0, y: 0, width: screenshot.width, height: screenshot.height };
@@ -87,7 +92,7 @@ export function EditorCanvas() {
     const x = (containerSize.width - bounds.width * scale) / 2 - bounds.x * scale;
     const y = (containerSize.height - bounds.height * scale) / 2 - bounds.y * scale;
     setView({ scale, x, y });
-  }, [screenshot.url, containerSize.width, containerSize.height, fitNonce, backdrop]);
+  }, [screenshot.url, screenshot.width, screenshot.height, containerSize.width, containerSize.height, fitNonce, backdrop, hasDoc]);
 
   // Update transformer on selection change
   useEffect(() => {
@@ -510,7 +515,7 @@ export function EditorCanvas() {
       width: '100%', height: '100%', overflow: 'hidden',
       backgroundColor: '#181818', position: 'relative', ...dotGrid,
     }}>
-      {!screenshot.imageEl && (
+      {!hasDoc && (
         <div style={{
           position: 'absolute', inset: 0, display: 'flex',
           alignItems: 'center', justifyContent: 'center', userSelect: 'none',
@@ -529,6 +534,18 @@ export function EditorCanvas() {
             <div style={{ fontSize: 13, color: '#666', marginTop: 14 }}>
               or paste (Ctrl+V) / drop an image file
             </div>
+            {/* The card is pointerEvents:none; the button re-enables its own. */}
+            <button
+              onClick={() => newBoard()}
+              style={{
+                pointerEvents: 'auto', marginTop: 18, cursor: 'pointer',
+                background: 'transparent', color: '#9b9b9b',
+                border: '1px solid #3d3d3d', borderRadius: 6,
+                padding: '7px 14px', fontSize: 13, fontWeight: 600,
+              }}
+            >
+              or start a blank canvas <span style={{ opacity: 0.6 }}>Ctrl+N</span>
+            </button>
           </div>
         </div>
       )}
@@ -549,6 +566,17 @@ export function EditorCanvas() {
         {/* Layer 1: Backdrop (behind) + background image. Both are captured by
             toDataURL on export. */}
         <Layer listening={false}>
+          {/* Board page fill (a board has no image). 'transparent' draws nothing
+              so the dark editor / dot grid shows through and export keeps alpha. */}
+          {isBoard && boardBackground !== 'transparent' && (
+            <Rect
+              x={0} y={0}
+              width={screenshot.width}
+              height={screenshot.height}
+              fill={boardBackground!}
+              listening={false}
+            />
+          )}
           {screenshot.imageEl && backdrop && (
             <Backdrop b={backdrop} imgW={screenshot.width} imgH={screenshot.height} />
           )}
@@ -647,6 +675,17 @@ export function EditorCanvas() {
 
         {/* Layer 4: Overlay (crop + transformer) */}
         <Layer>
+          {/* Guide outline for a transparent board so the page bounds are visible
+              on the dark canvas. In this overlay layer, export hides it. */}
+          {isBoard && boardBackground === 'transparent' && (
+            <Rect
+              x={0} y={0}
+              width={screenshot.width}
+              height={screenshot.height}
+              stroke="rgba(255,255,255,0.15)" strokeWidth={1}
+              listening={false}
+            />
+          )}
           {cropOverlay}
           {cropIndicator}
           <Transformer
@@ -665,7 +704,7 @@ export function EditorCanvas() {
       </Stage>
 
       {/* Text edit overlay */}
-      {editingTextId && screenshot.imageEl && (() => {
+      {editingTextId && hasDoc && (() => {
         const textAnno = annotations.find((a) => a.id === editingTextId) as TextAnno | undefined;
         if (!textAnno) return null;
         return (

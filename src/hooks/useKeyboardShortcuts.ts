@@ -33,6 +33,11 @@ export function useKeyboardShortcuts(onCopy: () => Promise<void>, onSave: () => 
       useEditorStore.getState().setView({ scale: Math.max(0.1, view.scale / 1.2) });
       return;
     }
+    if (ctrl && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      useEditorStore.getState().newBoard();
+      return;
+    }
     if (ctrl && e.key.toLowerCase() === 'w') {
       e.preventDefault();
       const { activeTabId, closeTab } = useEditorStore.getState();

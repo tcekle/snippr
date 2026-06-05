@@ -9,6 +9,7 @@ import {
   type BackdropFill,
   type FrameStyle,
 } from '../types/backdrop';
+import { BOARD_BACKGROUNDS, BOARD_SIZES } from '../types/board';
 
 // The usual defaults (iOS system palette) — the last grid tile opens the custom picker
 const PRESET_COLORS = [
@@ -126,10 +127,65 @@ export function PropertiesPanel() {
         </div>
       )}
 
+      <BoardControls />
       <PixelSizeControl />
       <BadgeNumberControl />
       <BackdropControls />
     </div>
+  );
+}
+
+function BoardControls() {
+  const { boardBackground, setBoardBackground, screenshot, setBoardSize } = useEditorStore();
+  if (boardBackground === null) return null;
+
+  const checker = 'repeating-conic-gradient(#bbb 0 25%, #fff 0 50%) 0 0 / 10px 10px';
+  return (
+    <>
+      <div>
+        <Label>Background</Label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {BOARD_BACKGROUNDS.map((b) => (
+            <button
+              key={b.value}
+              title={b.label}
+              onClick={() => setBoardBackground(b.value)}
+              style={{
+                width: 34, height: 28, borderRadius: 5, cursor: 'pointer', padding: 0,
+                background: b.value === 'transparent' ? checker : b.value,
+                border: b.value === boardBackground ? '2px solid var(--color-accent)' : '2px solid transparent',
+                boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.15)',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <Label>Canvas Size</Label>
+        <div style={{ display: 'flex', gap: 4, background: 'var(--color-elevated)', borderRadius: 7, padding: 3 }}>
+          {BOARD_SIZES.map((s) => {
+            const on = s.width === screenshot.width && s.height === screenshot.height;
+            return (
+              <button
+                key={s.label}
+                onClick={() => setBoardSize(s.width, s.height)}
+                style={{
+                  flex: 1, border: 'none', cursor: 'pointer', borderRadius: 5, padding: '5px 0',
+                  fontSize: 11.5, fontWeight: 600,
+                  background: on ? 'var(--color-accent)' : 'transparent',
+                  color: on ? '#fff' : 'var(--color-text-muted)',
+                }}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, fontFamily: 'monospace' }}>
+          {screenshot.width} × {screenshot.height}
+        </div>
+      </div>
+    </>
   );
 }
 

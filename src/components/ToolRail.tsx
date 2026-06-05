@@ -49,9 +49,12 @@ interface FlyoutState {
   left: number;
 }
 
+const BOARD_DISABLED_TOOLS: ToolType[] = ['pixelate', 'crop'];
+
 export function ToolRail() {
   const activeTool = useEditorStore((s) => s.activeTool);
   const setTool = useEditorStore((s) => s.setTool);
+  const boardBackground = useEditorStore((s) => s.boardBackground);
   const [flyout, setFlyout] = useState<FlyoutState | null>(null);
   // Last-used variant per grouped entry, so the button keeps showing it
   // after switching to another tool (Photoshop behavior).
@@ -94,12 +97,16 @@ export function ToolRail() {
     }}>
       {RAIL.map((entry, idx) => {
         const item = currentVariant(entry, idx);
+        const disabledOnBoard =
+          boardBackground !== null &&
+          entry.variants.every((v) => BOARD_DISABLED_TOOLS.includes(v.tool));
         return (
           <ToolButton
             key={entry.variants[0].tool}
             item={item}
             grouped={entry.variants.length > 1}
             active={entry.variants.some((v) => v.tool === activeTool)}
+            disabled={disabledOnBoard}
             onActivate={() => setTool(item.tool)}
             onOpenFlyout={(rect) => {
               if (entry.variants.length < 2) return;
@@ -127,10 +134,11 @@ export function ToolRail() {
   );
 }
 
-function ToolButton({ item, grouped, active, onActivate, onOpenFlyout }: {
+function ToolButton({ item, grouped, active, disabled, onActivate, onOpenFlyout }: {
   item: ToolItem;
   grouped: boolean;
   active: boolean;
+  disabled?: boolean;
   onActivate: () => void;
   onOpenFlyout: (rect: DOMRect) => void;
 }) {
@@ -154,6 +162,7 @@ function ToolButton({ item, grouped, active, onActivate, onOpenFlyout }: {
     <button
       title={title}
       onPointerDown={(e) => {
+        if (disabled) return;
         if (!grouped || e.button !== 0) return;
         longPressFired.current = false;
         const rect = e.currentTarget.getBoundingClientRect();
@@ -165,6 +174,7 @@ function ToolButton({ item, grouped, active, onActivate, onOpenFlyout }: {
       onPointerUp={clearTimer}
       onPointerLeave={clearTimer}
       onClick={() => {
+        if (disabled) return;
         // The click after a long-press must not re-activate / close the flyout
         if (longPressFired.current) {
           longPressFired.current = false;
@@ -174,21 +184,24 @@ function ToolButton({ item, grouped, active, onActivate, onOpenFlyout }: {
       }}
       onContextMenu={(e) => {
         e.preventDefault();
-        if (grouped) onOpenFlyout(e.currentTarget.getBoundingClientRect());
+        if (!disabled && grouped) onOpenFlyout(e.currentTarget.getBoundingClientRect());
       }}
       style={{
         width: 40, height: 40, position: 'relative',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: 'none', borderRadius: 6, cursor: 'pointer',
+        border: 'none', borderRadius: 6,
+        cursor: disabled ? 'not-allowed' : 'pointer',
         background: active ? 'var(--color-accent)' : 'transparent',
         color: active ? '#fff' : 'var(--color-text-muted)',
+        opacity: disabled ? 0.35 : 1,
+        pointerEvents: disabled ? 'none' : undefined,
         transition: 'background 0.15s, color 0.15s',
       }}
       onMouseEnter={(e) => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)';
+        if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)';
       }}
       onMouseLeave={(e) => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+        if (!active && !disabled) (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
       }}
     >
       {item.icon}

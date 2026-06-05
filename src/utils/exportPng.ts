@@ -6,10 +6,10 @@ import { backdropBounds } from './backdropGeometry';
 
 const CANVAS_BG = '#181818'; // matches the editor canvas background
 
-/** Image rect grown to cover annotations that spill past the screenshot edges.
- * Requires the stage transform to be reset to identity first. */
-function computeExportBounds(stage: Konva.Stage, img: HTMLImageElement) {
-  const imgRect = { x: 0, y: 0, width: img.naturalWidth, height: img.naturalHeight };
+/** Base rect (image or board page) grown to cover annotations that spill past
+ * its edges. Requires the stage transform to be reset to identity first. */
+function computeExportBounds(stage: Konva.Stage, base: { width: number; height: number }) {
+  const imgRect = { x: 0, y: 0, width: base.width, height: base.height };
   const annoLayer = stage.getLayers()[1];
   if (!annoLayer) return imgRect;
   const a = annoLayer.getClientRect({ relativeTo: stage });
@@ -25,7 +25,9 @@ function computeExportBounds(stage: Konva.Stage, img: HTMLImageElement) {
 function renderAnnotatedPng(): Uint8Array {
   const store = useEditorStore.getState();
   const stage = store.stageRef;
-  if (!stage || !store.screenshot.imageEl) throw new Error('No stage or image');
+  const img = store.screenshot.imageEl;
+  const isBoard = store.boardBackground !== null;
+  if (!stage || (!img && !isBoard)) throw new Error('No stage or document');
 
   // Deselect
   store.setSelectedId(null);
@@ -45,23 +47,37 @@ function renderAnnotatedPng(): Uint8Array {
   stage.batchDraw();
 
   const { cropRect, backdrop } = store;
-  const img = store.screenshot.imageEl;
+  // Base rect comes from the image (screenshot) or the page size (board).
+  const base = img
+    ? { width: img.naturalWidth, height: img.naturalHeight }
+    : { width: store.screenshot.width, height: store.screenshot.height };
   // Explicit crop wins; a backdrop sets the padded composition bounds (negative
   // origin, captured correctly post-transform-reset); otherwise grow to include
-  // annotations outside the image.
+  // annotations outside the base rect. (A board never has a backdrop.)
   const rect = cropRect
     ? cropRect
-    : backdrop
+    : backdrop && img
       ? backdropBounds(img.naturalWidth, img.naturalHeight, backdrop)
-      : computeExportBounds(stage, img);
+      : computeExportBounds(stage, base);
 
-  // Solid canvas-colored backdrop so out-of-image annotations don't sit on
-  // transparency (alpha is unreliable through the Windows clipboard)
-  const bg = new Konva.Rect({ ...rect, fill: CANVAS_BG, listening: false });
-  const bgLayer = stage.getLayers()[0];
-  bgLayer.add(bg);
-  bg.moveToBottom();
-  stage.batchDraw();
+  // Background fill: a transparent board keeps alpha (no fill); any other board
+  // fills with its color; a screenshot uses the existing canvas-gray backdrop so
+  // out-of-image annotations don't sit on transparency (alpha is unreliable
+  // through the Windows clipboard).
+  const boardBg = store.boardBackground;
+  const fillColor =
+    boardBg === 'transparent' ? null :  // keep alpha
+    boardBg ? boardBg :                 // board color
+    CANVAS_BG;                          // screenshot: existing gray backdrop
+
+  let bgRect: Konva.Rect | null = null;
+  if (fillColor) {
+    bgRect = new Konva.Rect({ ...rect, fill: fillColor, listening: false });
+    const bgLayer = stage.getLayers()[0];
+    bgLayer.add(bgRect);
+    bgRect.moveToBottom();
+    stage.batchDraw();
+  }
 
   const dataURL = stage.toDataURL({
     x: rect.x,
@@ -73,7 +89,7 @@ function renderAnnotatedPng(): Uint8Array {
   });
 
   // Restore view
-  bg.destroy();
+  if (bgRect) bgRect.destroy();
   stage.scale({ x: savedView.scale, y: savedView.scale });
   stage.position({ x: savedView.x, y: savedView.y });
   if (overlayLayer) overlayLayer.visible(true);
