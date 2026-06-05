@@ -22,9 +22,12 @@ function decodeBlob(blob: Blob): Promise<{ url: string; img: HTMLImageElement }>
 /** Decode an image blob and open it as a new editor tab. A snippr-embedded PNG
  * restores as a fully editable scene; anything else opens as a flat background. */
 export async function addTabFromBlob(blob: Blob): Promise<void> {
-  if (await openSceneFromPng(await blobBytes(blob))) return;
+  const bytes = await blobBytes(blob);
+  if (await openSceneFromPng(bytes)) return;
   const { url, img } = await decodeBlob(blob);
-  useEditorStore.getState().addTab(url, img.naturalWidth, img.naturalHeight, img);
+  // Keep the exact source bytes so an editable-PNG save embeds them verbatim
+  // (no canvas re-encode → smaller file, lossless base).
+  useEditorStore.getState().addTab(url, img.naturalWidth, img.naturalHeight, img, bytes);
 }
 
 /** Import an image the user pasted or dropped: it becomes the background of a

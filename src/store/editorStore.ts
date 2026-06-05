@@ -25,6 +25,9 @@ interface ScreenshotState {
   width: number;
   height: number;
   imageEl: HTMLImageElement | null;
+  /** The exact bytes this image arrived as (snip/open/restore). Embedded verbatim
+   * in editable-PNG export so the base isn't re-encoded (smaller + lossless). */
+  originalBytes?: Uint8Array | null;
 }
 
 interface ViewState {
@@ -112,7 +115,7 @@ interface EditorState {
 
 interface EditorActions {
   /** New snip arrives: park the current tab (if any) and open a fresh one. */
-  addTab: (url: string, w: number, h: number, imageEl: HTMLImageElement) => void;
+  addTab: (url: string, w: number, h: number, imageEl: HTMLImageElement, originalBytes?: Uint8Array | null) => void;
   /** Open a fresh blank board tab (no image; page size from opts or defaults). */
   newBoard: (opts?: { width?: number; height?: number; background?: string }) => void;
   setBoardBackground: (color: string) => void;
@@ -179,7 +182,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   activeTabId: null,
   nextTabNum: 1,
 
-  addTab: (url, w, h, imageEl) => {
+  addTab: (url, w, h, imageEl, originalBytes) => {
     set((state) => {
       const tabs = parkActive(state);
       const id = nanoid();
@@ -188,7 +191,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
         nextTabNum: state.nextTabNum + 1,
         activeTabId: id,
         ...EMPTY_DOC,
-        screenshot: { url, width: w, height: h, imageEl },
+        screenshot: { url, width: w, height: h, imageEl, originalBytes: originalBytes ?? null },
       };
     });
   },

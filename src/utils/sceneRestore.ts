@@ -76,7 +76,7 @@ export async function openSceneFromPng(png: Uint8Array): Promise<boolean> {
     const baseBytes = container.blobs.get(m.baseRef);
     if (!baseBytes) return false; // base image missing → can't restore image doc
     const { url, img } = await blobToImage(baseBytes);
-    store.addTab(url, img.naturalWidth, img.naturalHeight, img);
+    store.addTab(url, img.naturalWidth, img.naturalHeight, img, baseBytes);
   }
 
   // addTab/newBoard created a clean tab (EMPTY_DOC); patch in the restored state.

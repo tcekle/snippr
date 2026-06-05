@@ -122,6 +122,9 @@ function timestamp(): string {
  *  a board. This is what pixelate/loupe sample and what reopen restores from. */
 async function renderBasePng(): Promise<Uint8Array | null> {
   const s = useEditorStore.getState();
+  // Prefer the exact bytes the image arrived as — no canvas re-encode (which
+  // inflates to full RGBA), so the embedded base is smaller and lossless.
+  if (s.screenshot.originalBytes) return s.screenshot.originalBytes;
   const img = s.screenshot.imageEl;
   if (!img) return null; // board → no base image
   const c = document.createElement('canvas');
