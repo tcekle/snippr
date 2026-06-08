@@ -32,6 +32,7 @@ npm run tauri build                                    # NSIS installer
 - **Plain-browser safety**: the bundle must load outside Tauri (README screenshots). Wrap every `@tauri-apps/*` call in try/catch or `.catch()`; `getCurrentWindow()` at module scope throws in a browser.
 - **Canvas height cap is 16,000 px** (WebView2 texture limit) — taller bitmaps render blank.
 - **Badge numbers derive from `max(existing)+1`** at creation — there is no counter to increment.
+- **The `snippr generate` / `snippr mcp` CLI renders in a headless WebView, so build it with `tauri build` (`npx tauri build --no-bundle`), NOT `cargo build --release`.** A plain cargo release isn't a production Tauri app — it still loads `devUrl` (`localhost:1420`), so with no dev server the render window hangs to the 30s watchdog. The render window routes by the `cli-render` label, sets its own `WEBVIEW2_USER_DATA_FOLDER` (so it runs while the tray app holds the default folder), and exits via `std::process::exit` — `app.exit` leaves the OS status 0 and masks failures. `mcp` spawns `generate` as a subprocess of itself; the MCP server runs the *built* binary, so re-run `tauri build` and restart it after code changes.
 
 ## README screenshots
 
