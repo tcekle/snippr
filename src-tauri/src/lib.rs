@@ -1,4 +1,5 @@
 
+pub mod cli;
 mod clipboard_watcher;
 mod commands;
 mod cursor;

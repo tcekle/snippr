@@ -4,6 +4,7 @@
 use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
 
+use crate::cli::CliState;
 use crate::{export, settings, state::AppState};
 
 /// Return the pending PNG bytes as a raw binary IPC response (zero-copy).
@@ -36,29 +37,10 @@ pub fn save_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> Resul
     let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
         return Err("expected raw body".into());
     };
-    let headers = request.headers();
-    let has_scene = headers.get("has-scene").and_then(|v| v.to_str().ok()) == Some("1");
+    let png = build_output_png(request.headers(), body)?;
 
-    // With an embedded scene, the body is framed `[u32be flatLen][flat PNG][snIp
-    // chunk-data]` — splice the scene chunk in before IEND so the saved PNG is
-    // reopenable. Without it, the body is the plain flattened PNG (legacy path).
-    let png: Vec<u8> = if has_scene {
-        let flat_len = headers
-            .get("flat-len")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<usize>().ok())
-            .ok_or("missing/invalid flat-len header")?;
-        if body.len() < 4 + flat_len {
-            return Err("framed save body too short".into());
-        }
-        let flat = &body[4..4 + flat_len];
-        let chunk_data = &body[4 + flat_len..];
-        crate::png_embed::inject_snip_chunk(flat, chunk_data)?
-    } else {
-        body.to_vec()
-    };
-
-    let explicit = headers
+    let explicit = request
+        .headers()
         .get("save-path")
         .and_then(|v| v.to_str().ok())
         .map(percent_decode);
@@ -68,6 +50,28 @@ pub fn save_annotated(app: AppHandle, request: tauri::ipc::Request<'_>) -> Resul
         _ => export::save_png_file(&app, &png)?,
     };
     Ok(saved.to_string_lossy().into_owned())
+}
+
+/// Resolve a save/render request body into final PNG bytes. With a `has-scene`
+/// header the body is framed `[u32be flatLen][flat PNG][snIp chunk-data]` and the
+/// scene chunk is spliced in before IEND so the PNG reopens as a workspace;
+/// otherwise the body is the flat PNG verbatim.
+fn build_output_png(headers: &tauri::http::HeaderMap, body: &[u8]) -> Result<Vec<u8>, String> {
+    let has_scene = headers.get("has-scene").and_then(|v| v.to_str().ok()) == Some("1");
+    if !has_scene {
+        return Ok(body.to_vec());
+    }
+    let flat_len = headers
+        .get("flat-len")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<usize>().ok())
+        .ok_or("missing/invalid flat-len header")?;
+    if body.len() < 4 + flat_len {
+        return Err("framed save body too short".into());
+    }
+    let flat = &body[4..4 + flat_len];
+    let chunk_data = &body[4 + flat_len..];
+    crate::png_embed::inject_snip_chunk(flat, chunk_data)
 }
 
 /// Minimal percent-decoder for header-safe UTF-8 paths (encodeURIComponent on the JS side).
@@ -158,4 +162,62 @@ pub fn read_image_file(path: String) -> Result<tauri::ipc::Response, String> {
         buf.into_inner()
     };
     Ok(tauri::ipc::Response::new(png))
+}
+
+// ── CLI headless-render commands (used only by `snippr generate`) ─────────────
+
+/// The render job: scene JSON + editable flag for the frontend to apply.
+#[tauri::command]
+pub fn cli_get_job(state: tauri::State<'_, CliState>) -> serde_json::Value {
+    serde_json::json!({ "sceneJson": state.job_scene, "editable": state.job_editable })
+}
+
+/// The input image bytes (raw binary IPC — never base64/JSON).
+#[tauri::command]
+pub fn cli_get_input_image(state: tauri::State<'_, CliState>) -> tauri::ipc::Response {
+    tauri::ipc::Response::new(state.job_input.clone())
+}
+
+/// Receive the rendered PNG (same framing as `save_annotated`), write it to the
+/// `--output` path, print the path, and exit the process 0.
+#[tauri::command]
+pub fn cli_write_output(
+    app: AppHandle,
+    state: tauri::State<'_, CliState>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    let result = (|| {
+        let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+            return Err("expected raw body".to_string());
+        };
+        let png = build_output_png(request.headers(), body)?;
+        export::save_png_to(&state.output, &png)
+    })();
+
+    // Lose the race with the watchdog at most once.
+    if state.done.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return Ok(());
+    }
+    match result {
+        Ok(path) => {
+            println!("{}", path.display());
+            app.exit(0);
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("snippr: {e}");
+            app.exit(1);
+            Err(e)
+        }
+    }
+}
+
+/// The frontend hit an unrecoverable error; report it and exit non-zero.
+#[tauri::command]
+pub fn cli_fail(app: AppHandle, state: tauri::State<'_, CliState>, message: String) {
+    if state.done.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    eprintln!("snippr: {message}");
+    app.exit(1);
 }

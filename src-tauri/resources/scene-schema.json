@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://snippr.app/scene.schema.json",
+  "title": "Snippr Scene",
+  "description": "A snippr annotation scene applied onto a base image. All coordinates are in BASE-IMAGE PIXELS (the input image's native resolution), origin at the top-left. Colors are CSS hex strings like \"#ff3b30\". Pass this object to `snippr generate --scene -` together with `--input <image>`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["annotations"],
+  "properties": {
+    "annotations": {
+      "type": "array",
+      "description": "Ordered back-to-front; later items paint on top.",
+      "items": { "$ref": "#/$defs/Annotation" }
+    },
+    "backdrop": {
+      "description": "Optional decorative backdrop (padding + fill behind the image, like the Beautify panel). null = none.",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Backdrop" }]
+    },
+    "cropRect": {
+      "description": "Optional non-destructive crop applied at export. null = full image (auto-grown to wrap any out-of-bounds annotations).",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Rect" }]
+    },
+    "boardBackground": {
+      "description": "Whiteboard fill color, 'transparent', or null. Leave null when annotating a screenshot.",
+      "type": ["string", "null"]
+    }
+  },
+  "$defs": {
+    "color": {
+      "type": "string",
+      "description": "CSS hex color, e.g. \"#ff3b30\".",
+      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+    },
+    "points": {
+      "type": "array",
+      "description": "Flat coordinate list [x0,y0,x1,y1,...] in image pixels (Konva convention), NOT an array of {x,y}.",
+      "items": { "type": "number" },
+      "minItems": 4
+    },
+    "Rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "description": "left, image px" },
+        "y": { "type": "number", "description": "top, image px" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      }
+    },
+    "Annotation": {
+      "description": "Discriminated on `type`. Every annotation needs a unique string `id`.",
+      "oneOf": [
+        { "$ref": "#/$defs/RectAnno" },
+        { "$ref": "#/$defs/ShapeAnno" },
+        { "$ref": "#/$defs/EllipseAnno" },
+        { "$ref": "#/$defs/ArrowAnno" },
+        { "$ref": "#/$defs/LineAnno" },
+        { "$ref": "#/$defs/PenAnno" },
+        { "$ref": "#/$defs/HighlightAnno" },
+        { "$ref": "#/$defs/TextAnno" },
+        { "$ref": "#/$defs/BadgeAnno" },
+        { "$ref": "#/$defs/PixelateAnno" },
+        { "$ref": "#/$defs/LoupeAnno" },
+        { "$ref": "#/$defs/SpotlightAnno" }
+      ]
+    },
+    "RectAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Rectangle outline. x,y is the TOP-LEFT corner.",
+      "required": ["id", "type", "x", "y", "width", "height", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "rect" },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number" }, "height": { "type": "number" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "ShapeAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Polygon (triangle/diamond/star) inscribed in the x,y,width,height box. x,y is the TOP-LEFT of that box.",
+      "required": ["id", "type", "shape", "x", "y", "width", "height", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "shape" },
+        "shape": { "enum": ["triangle", "diamond", "star"] },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number" }, "height": { "type": "number" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "EllipseAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Ellipse outline. x,y is the CENTER; radiusX/radiusY are half-extents.",
+      "required": ["id", "type", "x", "y", "radiusX", "radiusY", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "ellipse" },
+        "x": { "type": "number", "description": "center x" },
+        "y": { "type": "number", "description": "center y" },
+        "radiusX": { "type": "number" }, "radiusY": { "type": "number" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "ArrowAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Arrow; head is drawn at the LAST point. Use two points [x0,y0,x1,y1] for a straight arrow.",
+      "required": ["id", "type", "points", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "arrow" },
+        "points": { "$ref": "#/$defs/points" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "LineAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Straight/poly line, no arrowhead.",
+      "required": ["id", "type", "points", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "line" },
+        "points": { "$ref": "#/$defs/points" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "PenAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Freehand stroke through all points (smoothed).",
+      "required": ["id", "type", "points", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "pen" },
+        "points": { "$ref": "#/$defs/points" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "HighlightAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Translucent highlighter stroke (multiply-style). Same point format as pen.",
+      "required": ["id", "type", "points", "stroke", "strokeWidth"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "highlight" },
+        "points": { "$ref": "#/$defs/points" },
+        "stroke": { "$ref": "#/$defs/color" },
+        "strokeWidth": { "type": "number" }
+      }
+    },
+    "TextAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Text label. x,y is the TOP-LEFT of the text box. fill is the text color.",
+      "required": ["id", "type", "x", "y", "text", "fontSize", "fill"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "text" },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "text": { "type": "string" },
+        "fontSize": { "type": "number", "description": "px" },
+        "fill": { "$ref": "#/$defs/color" }
+      }
+    },
+    "BadgeAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Numbered step badge: a filled circle with a centered number. x,y is the CENTER of the circle; radius is its radius (the number's font size equals radius).",
+      "required": ["id", "type", "x", "y", "number", "fill", "radius"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "badge" },
+        "x": { "type": "number", "description": "center x" },
+        "y": { "type": "number", "description": "center y" },
+        "number": { "type": "integer" },
+        "fill": { "$ref": "#/$defs/color" },
+        "radius": { "type": "number" }
+      }
+    },
+    "PixelateAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Pixelate/redact the base image within the x,y,width,height box (top-left origin). Samples the INPUT image, so it only works on screenshots, not blank boards.",
+      "required": ["id", "type", "x", "y", "width", "height", "pixelSize"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "pixelate" },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number" }, "height": { "type": "number" },
+        "pixelSize": { "type": "number", "description": "block size in px; bigger = blockier" }
+      }
+    },
+    "LoupeAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Magnifier loupe: samples a square source region of the base image and draws it enlarged at the lens position. Samples the INPUT image (screenshots only).",
+      "required": ["id", "type", "srcX", "srcY", "size", "x", "y", "zoom", "shape", "borderColor", "borderWidth", "showSource", "connector"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "loupe" },
+        "srcX": { "type": "number", "description": "left of the square source region (image px)" },
+        "srcY": { "type": "number", "description": "top of the square source region (image px)" },
+        "size": { "type": "number", "description": "side length of the source square (image px)" },
+        "x": { "type": "number", "description": "lens top-left x (image px)" },
+        "y": { "type": "number", "description": "lens top-left y (image px)" },
+        "zoom": { "type": "number", "description": "magnification factor, e.g. 2 = 2x" },
+        "shape": { "enum": ["circle", "rect"] },
+        "borderColor": { "$ref": "#/$defs/color" },
+        "borderWidth": { "type": "number" },
+        "showSource": { "type": "boolean", "description": "outline the sampled source region" },
+        "connector": { "type": "boolean", "description": "draw a line from source region to lens" }
+      }
+    },
+    "SpotlightAnno": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Spotlight: dims everything except the x,y,width,height region (top-left origin). Set invert=true to dim INSIDE the region instead.",
+      "required": ["id", "type", "x", "y", "width", "height", "shape", "dim", "feather", "invert"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "const": "spotlight" },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number" }, "height": { "type": "number" },
+        "shape": { "enum": ["rect", "ellipse"] },
+        "dim": { "type": "number", "description": "0..1 opacity of the dark veil" },
+        "feather": { "type": "number", "description": "edge softness in px" },
+        "invert": { "type": "boolean" }
+      }
+    },
+    "Backdrop": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Decorative backdrop behind the image (Beautify panel).",
+      "required": ["padding", "fill", "cornerRadius", "shadow", "frame", "aspect"],
+      "properties": {
+        "padding": { "type": "number", "description": "uniform padding around the image, px" },
+        "fill": {
+          "oneOf": [
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["kind", "color"],
+              "properties": { "kind": { "const": "solid" }, "color": { "$ref": "#/$defs/color" } }
+            },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["kind", "from", "to", "angle"],
+              "properties": {
+                "kind": { "const": "gradient" },
+                "from": { "$ref": "#/$defs/color" },
+                "to": { "$ref": "#/$defs/color" },
+                "angle": { "type": "number", "description": "degrees" }
+              }
+            }
+          ]
+        },
+        "cornerRadius": { "type": "number", "description": "image corner radius, px" },
+        "shadow": { "type": "boolean" },
+        "frame": { "enum": ["none", "macos", "browser"], "description": "fake window chrome above the image" },
+        "aspect": { "enum": ["auto", "1:1", "16:9", "4:3"] }
+      }
+    }
+  }
+}

@@ -159,11 +159,25 @@ function frameSaveBody(flat: Uint8Array, chunk: Uint8Array): Uint8Array {
   return out;
 }
 
+/** Render the active document into the raw IPC body + headers the `save_annotated`
+ *  / `cli_write_output` commands expect. `editable` frames flat+scene so the PNG
+ *  reopens as a workspace; otherwise it's the flat PNG alone. */
+export async function buildSaveBody(
+  editable: boolean,
+): Promise<{ body: Uint8Array; headers: Record<string, string> }> {
+  const flat = renderAnnotatedPng();
+  if (!editable) return { body: flat, headers: {} };
+  const chunk = await buildSceneChunkData();
+  return {
+    body: frameSaveBody(flat, chunk),
+    headers: { 'flat-len': String(flat.length), 'has-scene': '1' },
+  };
+}
+
 /** Save the annotated image via a Save As dialog, embedding the editable scene
  *  so the PNG reopens as a workspace. Returns the path, or null if cancelled. */
 export async function saveAnnotatedAs(): Promise<string | null> {
-  const flat = renderAnnotatedPng();
-  const chunk = await buildSceneChunkData();
+  const { body, headers } = await buildSaveBody(true);
   const settings = await invoke<SnipprSettings>('get_settings');
   const target = await save({
     defaultPath: `${settings.saveDirectory}\\snippr_${timestamp()}.png`,
@@ -172,13 +186,8 @@ export async function saveAnnotatedAs(): Promise<string | null> {
   if (!target) return null;
   // One framed raw body carries the flat render + the scene chunk (CLAUDE.md:
   // images cross as raw binary, never base64/JSON). Rust splits and splices.
-  const body = frameSaveBody(flat, chunk);
   return await invoke<string>('save_annotated', body, {
-    headers: {
-      'save-path': encodeURIComponent(target),
-      'flat-len': String(flat.length),
-      'has-scene': '1',
-    },
+    headers: { ...headers, 'save-path': encodeURIComponent(target) },
   });
 }
 
@@ -186,14 +195,14 @@ export async function saveAnnotatedAs(): Promise<string | null> {
  *  editable save but cannot be reopened as a workspace. Returns the path, or null
  *  if cancelled. (No `has-scene` header → Rust writes the body verbatim.) */
 export async function saveFlatAs(): Promise<string | null> {
-  const flat = renderAnnotatedPng();
+  const { body, headers } = await buildSaveBody(false);
   const settings = await invoke<SnipprSettings>('get_settings');
   const target = await save({
     defaultPath: `${settings.saveDirectory}\\snippr_${timestamp()}.png`,
     filters: [{ name: 'PNG image', extensions: ['png'] }],
   });
   if (!target) return null;
-  return await invoke<string>('save_annotated', flat, {
-    headers: { 'save-path': encodeURIComponent(target) },
+  return await invoke<string>('save_annotated', body, {
+    headers: { ...headers, 'save-path': encodeURIComponent(target) },
   });
 }
