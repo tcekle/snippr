@@ -3,6 +3,7 @@ pub mod cli;
 mod clipboard_watcher;
 mod commands;
 mod cursor;
+mod mcp;
 mod export;
 mod gif_export;
 mod png_embed;

@@ -19,8 +19,8 @@ use tauri::{Manager, WebviewUrl};
 
 use crate::commands;
 
-const SCENE_SCHEMA: &str = include_str!("../resources/scene-schema.json");
-const SCENE_NOTES: &str = include_str!("../resources/scene-notes.md");
+pub(crate) const SCENE_SCHEMA: &str = include_str!("../resources/scene-schema.json");
+pub(crate) const SCENE_NOTES: &str = include_str!("../resources/scene-notes.md");
 
 // ── clap surface ─────────────────────────────────────────────────────────────
 
@@ -69,6 +69,8 @@ enum Commands {
         #[arg(value_enum)]
         shell: clap_complete::Shell,
     },
+    /// Run as an MCP server over stdio, exposing describe + generate as tools.
+    Mcp,
 }
 
 /// argv[1] values that mean "run as a CLI" rather than launch the tray app.
@@ -76,6 +78,7 @@ const CLI_TOKENS: &[&str] = &[
     "describe",
     "generate",
     "completions",
+    "mcp",
     "help",
     "-h",
     "--help",
@@ -114,6 +117,7 @@ pub fn run_cli() {
             let name = cmd.get_name().to_string();
             clap_complete::generate(shell, &mut cmd, name, &mut std::io::stdout());
         }
+        Commands::Mcp => crate::mcp::run_mcp(),
         Commands::Generate {
             input,
             scene,
