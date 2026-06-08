@@ -16,14 +16,18 @@ try {
   /* not running under Tauri */
 }
 
-// `snippr generate` opens this same bundle in a hidden window with ?cli=render.
-const isCliRender = (() => {
-  try {
-    return new URLSearchParams(window.location.search).get("cli") === "render";
-  } catch {
-    return false;
-  }
-})();
+// `snippr generate` opens this bundle in a hidden window labelled "cli-render"
+// (label-routed so it works under the release asset protocol; the legacy
+// ?cli=render query is still honored as a fallback in dev).
+const isCliRender =
+  label.startsWith("cli-render") ||
+  (() => {
+    try {
+      return new URLSearchParams(window.location.search).get("cli") === "render";
+    } catch {
+      return false;
+    }
+  })();
 
 function rootFor(label: string) {
   if (isCliRender) return <CliRender />;

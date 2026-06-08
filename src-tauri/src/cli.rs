@@ -208,6 +208,15 @@ pub struct CliState {
 
 /// Build a one-window, no-tray Tauri app that renders the job and exits.
 fn run_render_app(job: CliJob) {
+    // Render in a dedicated WebView2 user-data folder. The snippr tray app (same
+    // identifier) locks the shared default folder while open, which would stop the
+    // render window from ever loading; an isolated folder lets the CLI/MCP render
+    // run alongside a running app.
+    std::env::set_var(
+        "WEBVIEW2_USER_DATA_FOLDER",
+        std::env::temp_dir().join("snippr-cli-webview"),
+    );
+
     let mut ctx = tauri::generate_context!();
     // Suppress the tray editor window declared in tauri.conf.json — we make our
     // own hidden render window instead.
@@ -237,18 +246,18 @@ fn run_render_app(job: CliJob) {
                 let st = handle.state::<CliState>();
                 if !st.done.swap(true, SeqCst) {
                     eprintln!("snippr: render timed out after 30s");
-                    handle.exit(2);
+                    std::process::exit(2);
                 }
             });
 
-            WebviewWindowBuilder::new(
-                app,
-                "main",
-                WebviewUrl::App("index.html?cli=render".into()),
-            )
-            .visible(false)
-            .skip_taskbar(true)
-            .build()?;
+            // Route by window LABEL, not a URL query: a release build serves the
+            // frontend from the embedded asset protocol, which resolves
+            // `index.html` but not `index.html?cli=render` (the query breaks the
+            // lookup → blank page → timeout). The label is read in main.tsx.
+            WebviewWindowBuilder::new(app, "cli-render", WebviewUrl::App("index.html".into()))
+                .visible(false)
+                .skip_taskbar(true)
+                .build()?;
             Ok(())
         })
         .build(ctx)

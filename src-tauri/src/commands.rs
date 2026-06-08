@@ -179,10 +179,11 @@ pub fn cli_get_input_image(state: tauri::State<'_, CliState>) -> tauri::ipc::Res
 }
 
 /// Receive the rendered PNG (same framing as `save_annotated`), write it to the
-/// `--output` path, print the path, and exit the process 0.
+/// `--output` path, print the path, and exit the process. Uses `process::exit`
+/// (not `app.exit`, which does NOT set the OS exit code) so callers — including
+/// the MCP server — see a real non-zero status on failure.
 #[tauri::command]
 pub fn cli_write_output(
-    app: AppHandle,
     state: tauri::State<'_, CliState>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
@@ -198,26 +199,26 @@ pub fn cli_write_output(
     if state.done.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return Ok(());
     }
+    use std::io::Write as _;
     match result {
         Ok(path) => {
             println!("{}", path.display());
-            app.exit(0);
-            Ok(())
+            let _ = std::io::stdout().flush();
+            std::process::exit(0);
         }
         Err(e) => {
             eprintln!("snippr: {e}");
-            app.exit(1);
-            Err(e)
+            std::process::exit(1);
         }
     }
 }
 
 /// The frontend hit an unrecoverable error; report it and exit non-zero.
 #[tauri::command]
-pub fn cli_fail(app: AppHandle, state: tauri::State<'_, CliState>, message: String) {
+pub fn cli_fail(state: tauri::State<'_, CliState>, message: String) {
     if state.done.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return;
     }
     eprintln!("snippr: {message}");
-    app.exit(1);
+    std::process::exit(1);
 }
