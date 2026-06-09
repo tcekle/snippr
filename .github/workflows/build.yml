@@ -11,6 +11,11 @@ on:
     branches: [main]
     tags: ['v*']
 
+# The pinned actions still ship a Node 20 runtime (deprecated). Opt them onto
+# Node 24 now — GitHub's documented forward-compat switch until their majors bump.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: windows-latest
