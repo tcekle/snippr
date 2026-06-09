@@ -21,6 +21,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
     let pause = CheckMenuItem::with_id(handle, "pause", "Pause watching", true, false, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(handle)?;
     let settings_item = MenuItem::with_id(handle, "settings", "Settings", true, None::<&str>)?;
+    let check_updates = MenuItem::with_id(handle, "check_updates", "Check for updates…", true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(handle)?;
     let quit = MenuItem::with_id(handle, "quit", "Quit snippr", true, None::<&str>)?;
 
@@ -32,6 +33,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
         &pause,
         &sep1,
         &settings_item,
+        &check_updates,
         &sep2,
         &quit,
     ])?;
@@ -81,6 +83,9 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
                     "settings" => {
                         crate::show_main_window(app);
                         let _ = app.emit_to("main", "open-settings", ());
+                    }
+                    "check_updates" => {
+                        crate::updater::check(app.clone(), true);
                     }
                     "quit" => {
                         app.exit(0);

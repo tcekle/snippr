@@ -1,15 +1,16 @@
 name: build
 
-# Builds the production Tauri app on Windows and uploads two artifacts:
-#   - snippr-msi    the WiX MSI installer
-#   - snippr-exe    the standalone snippr.exe (also the CLI/MCP binary)
-# Tauri downloads the WiX toolset on demand, so no extra installer setup is needed.
+# CI sanity build on Windows. Uploads two artifacts:
+#   - snippr-<ver>-setup   the NSIS per-user installer (-setup.exe)
+#   - snippr-<ver>-exe     the standalone snippr.exe (also the CLI/MCP binary)
+# This does NOT produce signed updater artifacts, so it needs no signing secrets;
+# release.yml handles signed releases + the update manifest.
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths-ignore: # docs-only changes don't need a full MSI build
+    paths-ignore: # docs-only changes don't need a full installer build
       - '**/*.md'
       - 'docs/**'
 # Release tags are handled by release.yml, not here, to avoid a double build.
@@ -52,17 +53,17 @@ jobs:
         id: version
         run: node scripts/compute-version.mjs --write
 
-      # Produces the MSI under bundle/msi and the release exe at target/release.
-      # `tauri build` (not `cargo build --release`) embeds the frontend so the exe
-      # serves tauri.localhost — required for the CLI/MCP render path to work.
-      - name: Build (MSI + exe)
-        run: npm run tauri build -- --bundles msi
+      # NSIS per-user installer + the release exe. `tauri build` (not
+      # `cargo build --release`) embeds the frontend so the exe serves
+      # tauri.localhost — required for the CLI/MCP render path to work.
+      - name: Build (installer + exe)
+        run: npm run tauri build
 
-      - name: Upload MSI installer
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: snippr-${{ steps.version.outputs.version }}-msi
-          path: src-tauri/target/release/bundle/msi/*.msi
+          name: snippr-${{ steps.version.outputs.version }}-setup
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
 
       - name: Upload standalone binary

@@ -1,9 +1,10 @@
 name: release
 
-# One-click release (manual dispatch). Builds the MSI + standalone exe, tags the
-# current commit vX.Y.Z, and publishes a GitHub Release with both attached.
-# The tag is created locally first so the build stamps the exact version, then
-# pushed only after the build succeeds — a failed build never strands a tag.
+# One-click release (manual dispatch). Builds the SIGNED NSIS per-user installer
+# + standalone exe, tags the current commit vX.Y.Z, and publishes a GitHub Release
+# with the installer, its .sig, latest.json (the auto-update manifest), and the
+# portable exe. The tag is created locally first so the build stamps the exact
+# version, then pushed only after the build succeeds — a failed build strands nothing.
 
 on:
   workflow_dispatch:
@@ -25,6 +26,11 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: v${{ inputs.version }}
+      # Updater signing — keypair from `tauri signer generate`. Private key +
+      # password are repo secrets; the public key lives in tauri.conf.json.
+      # Without these the updater-artifact build fails.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       # Version arrives via env (not interpolated into the script body) to avoid
@@ -70,15 +76,31 @@ jobs:
       - name: Stamp version
         run: node scripts/compute-version.mjs --write
 
-      - name: Build (MSI + exe)
-        run: npm run tauri build -- --bundles msi
+      # The updater.release.json overlay flips on createUpdaterArtifacts, which
+      # signs the installer and emits the -setup.exe.sig next to it.
+      - name: Build signed installer + exe
+        run: npm run tauri build -- --config src-tauri/updater.release.json
 
-      - name: Stage release assets
+      - name: Stage release assets + updater manifest
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release-assets | Out-Null
-          Copy-Item src-tauri/target/release/bundle/msi/*.msi release-assets/
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          Copy-Item $setup.FullName release-assets/
+          Copy-Item "$($setup.FullName).sig" release-assets/
           Copy-Item src-tauri/target/release/snippr.exe "release-assets/snippr-$env:TAG.exe"
+          # latest.json = the manifest the installed app polls; url/signature must
+          # match the uploaded installer asset exactly.
+          $ver = $env:TAG.Substring(1)
+          $sig = (Get-Content "$($setup.FullName).sig" -Raw).Trim()
+          $url = "https://github.com/${{ github.repository }}/releases/download/$env:TAG/$($setup.Name)"
+          $manifest = [ordered]@{
+            version   = $ver
+            notes     = "snippr $env:TAG"
+            pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = [ordered]@{ 'windows-x86_64' = [ordered]@{ signature = $sig; url = $url } }
+          } | ConvertTo-Json -Depth 6
+          Set-Content release-assets/latest.json -Value $manifest -Encoding utf8
 
       # Build passed — publish the tag, then cut the release with notes + assets.
       - name: Push tag

@@ -25,3 +25,6 @@ dist-ssr
 
 # Plans (local only)
 .plans/
+
+# Updater signing keys — private key is a GitHub secret, never commit
+.secrets/

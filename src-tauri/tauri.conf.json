@@ -34,7 +34,7 @@
         "type": "downloadBootstrapper"
       },
       "nsis": {
-        "installMode": "both"
+        "installMode": "currentUser"
       }
     },
     "icon": [
@@ -44,5 +44,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVGNzM3NzMxNEI0RjZGQUIKUldTcmIwOUxNWGR6NytqaVFtRWp1REpFOVdOaW52cnRnVHFzVms5dkRUVHVnU0lMSVpDdmxnRVkK",
+      "endpoints": [
+        "https://github.com/tcekle/snippr/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

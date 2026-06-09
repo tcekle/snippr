@@ -13,6 +13,7 @@ mod settings;
 mod snip_filter;
 mod state;
 mod tray;
+mod updater;
 
 use state::AppState;
 use tauri::Manager;
@@ -44,10 +45,15 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
         .setup(|app| {
             tray::build(app)?;
             clipboard_watcher::spawn(app.handle().clone());
+            // Silent check on launch — only prompts when an update is actually
+            // available. Release builds only; dev shouldn't try to self-update.
+            #[cfg(not(debug_assertions))]
+            updater::check(app.handle().clone(), false);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
