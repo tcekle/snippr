@@ -45,6 +45,15 @@ npm run tauri build                                    # NSIS installer
 
 `docs/empty-state.png` = same without `?demo=1`; `docs/layers-panel.png` = 220-wide crop of the right panel. Regenerate when the UI visibly changes.
 
+The committed docs screenshots are then **beautified by snippr itself** (dogfood). After regenerating the raw PNGs above, re-run the beautify pass — a backdrop-only scene (`{"annotations":[],"backdrop":{…}}`) through the production CLI, writing back over the same file:
+
+```powershell
+$exe = "src-tauri\target\release\snippr.exe"   # must be a `tauri build`, not cargo --release
+& $exe generate --input docs\editor.png --scene macos.json --output docs\editor.png
+```
+
+Frame per shot: `macos` for the full-app captures (editor/empty-state/beautify), `none` (padding + gradient only, smaller padding) for the `layers-panel` crop.
+
 ## Conventions
 
 - Commits: Conventional Commits, imperative subject ≤50 chars, body only for non-obvious why. No AI attribution lines.
