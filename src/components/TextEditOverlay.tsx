@@ -4,13 +4,16 @@ import type { TextAnno } from '../types/annotations';
 
 interface Props {
   anno: TextAnno;
+  /** anno.x/y projected into stage/document space (differs when a crop
+   *  straighten rotates the annotation layer); falls back to anno.x/y. */
+  docPos?: { x: number; y: number };
   stageRef: React.RefObject<Konva.Stage | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   view: { scale: number; x: number; y: number };
   onCommit: (text: string) => void;
 }
 
-export function TextEditOverlay({ anno, view, onCommit, containerRef }: Props) {
+export function TextEditOverlay({ anno, docPos, view, onCommit, containerRef }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const committed = useRef(false);
 
@@ -22,8 +25,9 @@ export function TextEditOverlay({ anno, view, onCommit, containerRef }: Props) {
   }, []);
 
   const containerRect = containerRef.current?.getBoundingClientRect();
-  const screenX = anno.x * view.scale + view.x + (containerRect?.left ?? 0);
-  const screenY = anno.y * view.scale + view.y + (containerRect?.top ?? 0);
+  const anchor = docPos ?? { x: anno.x, y: anno.y };
+  const screenX = anchor.x * view.scale + view.x + (containerRect?.left ?? 0);
+  const screenY = anchor.y * view.scale + view.y + (containerRect?.top ?? 0);
 
   const commit = () => {
     if (committed.current) return;

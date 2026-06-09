@@ -1,3 +1,8 @@
+/** Non-destructive crop frame, applied at export. `rotation` straightens by
+ *  rotating the image (and its annotations) beneath an UPRIGHT crop frame,
+ *  Lightroom-style; degrees, positive = clockwise. Omitted/0 = no rotation. */
+export interface CropRect { x:number; y:number; width:number; height:number; rotation?:number }
+
 /** Polygon variants living under the shape-tool flyout (rect/ellipse have their own anno types). */
 export type ShapeKind = 'triangle'|'diamond'|'star';
 export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|'loupe'|'spotlight'|ShapeKind;

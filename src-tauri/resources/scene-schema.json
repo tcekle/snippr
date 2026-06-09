@@ -17,7 +17,7 @@
       "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Backdrop" }]
     },
     "cropRect": {
-      "description": "Optional non-destructive crop applied at export. null = full image (auto-grown to wrap any out-of-bounds annotations).",
+      "description": "Optional non-destructive crop applied at export. null = full image (auto-grown to wrap any out-of-bounds annotations). Optional `rotation` (degrees) straightens the image under the frame.",
       "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Rect" }]
     },
     "boardBackground": {
@@ -45,7 +45,8 @@
         "x": { "type": "number", "description": "left, image px" },
         "y": { "type": "number", "description": "top, image px" },
         "width": { "type": "number" },
-        "height": { "type": "number" }
+        "height": { "type": "number" },
+        "rotation": { "type": "number", "description": "Optional straighten angle in degrees (+ = clockwise). Rotates the image under an upright crop frame; default 0." }
       }
     },
     "Annotation": {

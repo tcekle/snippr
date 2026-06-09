@@ -24,7 +24,7 @@ export function StatusBar({ onFit, onZoomIn, onZoomOut }: Props) {
     text: 'Click to place text · Enter to confirm',
     badge: 'Click to place badge',
     pixelate: 'Drag to pixelate area',
-    crop: 'Drag to crop · Enter to confirm · Esc to cancel',
+    crop: 'Drag a handle to resize · drag inside to move · top handle or Straighten slider to rotate · Enter to apply',
     backdrop: 'Backdrop · adjust padding, frame and background in the panel',
     loupe: 'Magnifier · drag over a detail to magnify it',
     spotlight: 'Spotlight · drag the region to keep lit',

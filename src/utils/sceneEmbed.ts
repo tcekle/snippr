@@ -3,7 +3,7 @@
 // custom `snIp` PNG chunk, and parse it back on reopen. Pure bytes/canvas/Image —
 // no Tauri APIs, so it is safe in the plain-browser build. The chunk data layout
 // is mirrored by the Rust splice in `src-tauri/src/png_embed.rs` (opaque there).
-import type { Annotation } from '../types/annotations';
+import type { Annotation, CropRect } from '../types/annotations';
 import type { BackdropConfig } from '../types/backdrop';
 import { useEditorStore } from '../store/editorStore';
 
@@ -32,7 +32,7 @@ export interface SceneManifest {
   baseRef: string | null; // "base" or null
   boardBackground: string | null; // color | 'transparent' | null
   annotations: SerialAnnotation[];
-  cropRect: { x: number; y: number; width: number; height: number } | null;
+  cropRect: CropRect | null;
   backdrop: BackdropConfig | null;
   /** diagnostics / forward-compat; ignored on read if unknown */
   meta?: { createdAt: string; appVersion: string };

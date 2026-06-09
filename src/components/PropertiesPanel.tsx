@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation } from '../types/annotations';
+import type { Annotation, CropRect } from '../types/annotations';
 import {
   CLASSIC_BACKDROP_PRESETS,
   DEFAULT_BACKDROP,
@@ -18,6 +18,20 @@ const PRESET_COLORS = [
   '#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#007aff',
   '#5856d6', '#af52de', '#ff2d55', '#ffffff', '#000000',
 ];
+
+// Reshape a crop rect to a target aspect ratio, keeping its center and clamping
+// inside the image bounds. Used when an aspect preset is picked.
+function conform(r: CropRect, ratio: number, imgW: number, imgH: number): CropRect {
+  const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+  let w = r.width, h = w / ratio;
+  if (h > r.height) { h = r.height; w = h * ratio; }
+  if (w > imgW) { w = imgW; h = w / ratio; }
+  if (h > imgH) { h = imgH; w = h * ratio; }
+  let x = cx - w / 2, y = cy - h / 2;
+  x = Math.max(0, Math.min(x, imgW - w));
+  y = Math.max(0, Math.min(y, imgH - h));
+  return { x, y, width: w, height: h, rotation: r.rotation ?? 0 };
+}
 
 export function PropertiesPanel() {
   const { strokeColor, strokeWidth, fontSize, activeTool, setStrokeColor, setStrokeWidth, setFontSize } = useEditorStore();
@@ -134,6 +148,7 @@ export function PropertiesPanel() {
       <BadgeNumberControl />
       <LoupeControls />
       <SpotlightControls />
+      <CropControls />
       <BackdropControls />
     </div>
   );
@@ -371,6 +386,92 @@ function SpotlightControls() {
         </div>
       </div>
       <ToggleRow label="Invert (dim inside)" on={sp?.invert ?? false} onToggle={() => set({ invert: !sp?.invert }, true)} />
+    </>
+  );
+}
+
+type AspectLabel = 'Free' | '1:1' | '4:3' | '16:9' | 'Orig';
+
+function CropControls() {
+  const { cropRect, setCropRect, cropAspect, setCropAspect, pushHistory, screenshot, activeTool } = useEditorStore();
+  // Push history at most once per straighten drag.
+  const straightenDirty = useRef(false);
+  if (activeTool !== 'crop') return null;
+
+  const rotation = cropRect?.rotation ?? 0;
+
+  // Map an aspect label to its numeric ratio (null = free / unlocked).
+  const ratioFor = (label: AspectLabel): number | null => {
+    switch (label) {
+      case 'Free': return null;
+      case '1:1': return 1;
+      case '4:3': return 4 / 3;
+      case '16:9': return 16 / 9;
+      case 'Orig': return screenshot.width / screenshot.height;
+    }
+  };
+
+  // Which preset (if any) the current locked ratio corresponds to.
+  const aspectOptions: readonly AspectLabel[] = ['Free', '1:1', '4:3', '16:9', 'Orig'];
+  const currentAspect: AspectLabel =
+    cropAspect === null
+      ? 'Free'
+      : aspectOptions.find((o) => o !== 'Free' && Math.abs((ratioFor(o) ?? 0) - cropAspect) < 0.01) ?? 'Free';
+
+  const onAspect = (label: AspectLabel) => {
+    const ratio = ratioFor(label);
+    setCropAspect(ratio);
+    // Conform the existing rect to the new ratio as a single undo step.
+    if (ratio !== null && cropRect) {
+      pushHistory();
+      setCropRect(conform(cropRect, ratio, screenshot.width, screenshot.height));
+    }
+  };
+
+  return (
+    <>
+      <div>
+        <Label>Straighten</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="range" min={-45} max={45} step={0.5} value={rotation}
+            disabled={!cropRect}
+            onPointerDown={() => { straightenDirty.current = false; }}
+            onChange={(e) => {
+              if (!cropRect) return;
+              if (!straightenDirty.current) { pushHistory(); straightenDirty.current = true; }
+              setCropRect({ ...cropRect, rotation: Number(e.target.value) });
+            }}
+            style={{ flex: 1, accentColor: 'var(--color-accent)' }}
+          />
+          <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 40 }}>{rotation.toFixed(1)}°</span>
+        </div>
+      </div>
+
+      <div>
+        <Label>Aspect</Label>
+        <Segmented<AspectLabel>
+          value={currentAspect}
+          options={aspectOptions}
+          onChange={onAspect}
+        />
+      </div>
+
+      <button
+        onClick={() => {
+          pushHistory();
+          setCropRect({ x: 0, y: 0, width: screenshot.width, height: screenshot.height, rotation: 0 });
+          setCropAspect(null);
+        }}
+        style={{
+          width: '100%', background: 'transparent', color: 'var(--color-text)',
+          border: '1px solid var(--color-border)', borderRadius: 6,
+          padding: '7px 0', fontSize: 12.5, fontWeight: 600,
+          cursor: 'pointer', outline: 'none',
+        }}
+      >
+        Reset crop
+      </button>
     </>
   );
 }

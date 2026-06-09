@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import Konva from 'konva';
 import { nanoid } from 'nanoid';
-import type { Annotation, ToolType } from '../types/annotations';
+import type { Annotation, ToolType, CropRect } from '../types/annotations';
 import type { BackdropConfig, Palette } from '../types/backdrop';
 import { DEFAULT_BACKDROP } from '../types/backdrop';
 import { DEFAULT_BOARD } from '../types/board';
@@ -16,7 +16,7 @@ export interface SnipprSettings {
 
 interface HistoryEntry {
   annotations: Annotation[];
-  cropRect: { x: number; y: number; width: number; height: number } | null;
+  cropRect: CropRect | null;
   backdrop: BackdropConfig | null;
 }
 
@@ -43,7 +43,7 @@ interface DocSnapshot {
   annotations: Annotation[];
   history: HistoryEntry[];
   future: HistoryEntry[];
-  cropRect: { x: number; y: number; width: number; height: number } | null;
+  cropRect: CropRect | null;
   backdrop: BackdropConfig | null;
   view: ViewState;
 }
@@ -95,7 +95,9 @@ interface EditorState {
   selectedId: string | null;
   history: HistoryEntry[];
   future: HistoryEntry[];
-  cropRect: { x: number; y: number; width: number; height: number } | null;
+  cropRect: CropRect | null;
+  /** Crop aspect-ratio lock (width/height) while the crop tool is active; null = free. Transient (not per-doc). */
+  cropAspect: number | null;
   backdrop: BackdropConfig | null;
   activeTool: ToolType;
   strokeColor: string;
@@ -131,7 +133,8 @@ interface EditorActions {
   redo: () => void;
   setTool: (tool: ToolType) => void;
   setView: (view: Partial<ViewState>) => void;
-  setCropRect: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  setCropRect: (rect: CropRect | null) => void;
+  setCropAspect: (ratio: number | null) => void;
   setBackdrop: (partial: Partial<BackdropConfig>, pushHistory?: boolean) => void;
   removeBackdrop: () => void;
   setSelectedId: (id: string | null) => void;
@@ -170,6 +173,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   history: [],
   future: [],
   cropRect: null,
+  cropAspect: null,
   backdrop: null,
   activeTool: 'select',
   strokeColor: '#ff3b30',
@@ -358,13 +362,20 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   },
 
   setTool: (tool) => {
-    set((state) => ({
-      activeTool: tool,
-      selectedId: null,
-      editingTextId: null,
-      backdrop: tool === 'backdrop' && !state.backdrop ? DEFAULT_BACKDROP : state.backdrop,
-      cropRect: tool === 'backdrop' ? null : state.cropRect,
-    }));
+    set((state) => {
+      // Backdrop & crop are mutually exclusive — entering one clears the other.
+      let cropRect = state.cropRect;
+      let backdrop = state.backdrop;
+      if (tool === 'backdrop') {
+        cropRect = null;
+        if (!backdrop) backdrop = DEFAULT_BACKDROP;
+      } else if (tool === 'crop' && !cropRect && state.screenshot.imageEl) {
+        // Lightroom-style: entering crop shows a full-image frame to adjust, not a blank draw.
+        cropRect = { x: 0, y: 0, width: state.screenshot.width, height: state.screenshot.height };
+        backdrop = null;
+      }
+      return { activeTool: tool, selectedId: null, editingTextId: null, backdrop, cropRect };
+    });
   },
 
   setView: (view) => {
@@ -373,6 +384,10 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
 
   setCropRect: (rect) => {
     set((state) => ({ cropRect: rect, backdrop: rect ? null : state.backdrop }));
+  },
+
+  setCropAspect: (ratio) => {
+    set({ cropAspect: ratio });
   },
 
   setBackdrop: (partial, pushHistory = true) => {

@@ -1,10 +1,10 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Rect, Ellipse, Arrow, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Rect, Ellipse, Arrow, Line, Circle, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno, LoupeAnno, SpotlightAnno } from '../types/annotations';
+import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno, LoupeAnno, SpotlightAnno, CropRect } from '../types/annotations';
 import { shapePoints, isShapeTool } from '../utils/shapeGeometry';
 import { RectShape } from './annotations/RectShape';
 import { PolyShape } from './annotations/PolyShape';
@@ -32,6 +32,95 @@ type InProgress =
   | { type: 'pen' | 'highlight'; points: number[] }
   | null;
 
+// ── Crop interaction (Lightroom/Photoshop-style) ─────────────────────────────
+// The crop frame is axis-aligned in document space; "rotation" rotates the image
+// beneath it (handled in EditorCanvas via layer transforms + at export). Handle
+// hit-testing is geometric (the overlay nodes are purely visual, listening=false)
+// so it's unaffected by the content-layer rotation, which keeps the math simple.
+type CropHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+type CropHit = CropHandle | 'rotate' | 'move' | null;
+type CropDrag =
+  | { mode: 'move'; start: CropRect; startPos: { x: number; y: number } }
+  | { mode: 'resize'; handle: CropHandle; start: CropRect }
+  | { mode: 'rotate'; start: CropRect; cx: number; cy: number; startAngle: number; startRotation: number }
+  | null;
+
+const CROP_MIN = 16;            // smallest crop side, document px
+const CROP_HANDLE_PX = 10;      // on-screen handle side
+const CROP_HIT_PX = 12;         // on-screen grab tolerance (half-extent)
+const CROP_ROT_PX = 30;         // rotate-knob distance above the top edge
+
+/** Which crop control (if any) sits under the cursor. Sizes are screen px, so
+ *  divide by the stage scale to compare in document space. Corners beat edges. */
+function cropHitTest(p: { x: number; y: number }, r: CropRect, scale: number): CropHit {
+  const tol = CROP_HIT_PX / scale;
+  const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+  if (Math.hypot(p.x - cx, p.y - (r.y - CROP_ROT_PX / scale)) <= CROP_HIT_PX / scale) return 'rotate';
+  const pts: [CropHandle, number, number][] = [
+    ['nw', r.x, r.y], ['ne', r.x + r.width, r.y], ['se', r.x + r.width, r.y + r.height], ['sw', r.x, r.y + r.height],
+    ['n', cx, r.y], ['e', r.x + r.width, cy], ['s', cx, r.y + r.height], ['w', r.x, cy],
+  ];
+  for (const [h, hx, hy] of pts) {
+    if (Math.abs(p.x - hx) <= tol && Math.abs(p.y - hy) <= tol) return h;
+  }
+  if (p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height) return 'move';
+  return null;
+}
+
+function cropCursorFor(hit: CropHit): string {
+  switch (hit) {
+    case 'nw': case 'se': return 'nwse-resize';
+    case 'ne': case 'sw': return 'nesw-resize';
+    case 'n': case 's': return 'ns-resize';
+    case 'e': case 'w': return 'ew-resize';
+    case 'rotate': return 'grab';
+    case 'move': return 'move';
+    default: return 'crosshair';
+  }
+}
+
+/** Resize from the `start` rect by dragging `handle` to point `p`. Absolute (not
+ *  incremental), so it never drifts. `aspect` (w/h) locks the ratio; otherwise the
+ *  rect clamps to the image for the common free + unrotated case. */
+function resizeCropRect(
+  start: CropRect, handle: CropHandle, p: { x: number; y: number },
+  aspect: number | null, imgW: number, imgH: number,
+): CropRect {
+  let l = start.x, t = start.y, rt = start.x + start.width, b = start.y + start.height;
+  if (handle.includes('w')) l = Math.min(p.x, rt - CROP_MIN);
+  if (handle.includes('e')) rt = Math.max(p.x, l + CROP_MIN);
+  if (handle.includes('n')) t = Math.min(p.y, b - CROP_MIN);
+  if (handle.includes('s')) b = Math.max(p.y, t + CROP_MIN);
+  let nx = l, ny = t, nw = rt - l, nh = b - t;
+
+  if (aspect) {
+    if (handle.length === 2) {
+      // Corner: keep the opposite corner anchored, fit the dragged box to the ratio.
+      const ax = handle.includes('w') ? rt : l;
+      const ay = handle.includes('n') ? b : t;
+      let w2 = nw, h2 = nw / aspect;
+      if (h2 > nh) { h2 = nh; w2 = nh * aspect; }
+      w2 = Math.max(CROP_MIN, w2); h2 = Math.max(CROP_MIN, h2);
+      nx = handle.includes('w') ? ax - w2 : ax;
+      ny = handle.includes('n') ? ay - h2 : ay;
+      nw = w2; nh = h2;
+    } else if (handle === 'w' || handle === 'e') {
+      nh = nw / aspect;
+      ny = start.y + start.height / 2 - nh / 2;
+    } else {
+      nw = nh * aspect;
+      nx = start.x + start.width / 2 - nw / 2;
+    }
+  } else if (!start.rotation) {
+    if (nx < 0) { nw += nx; nx = 0; }
+    if (ny < 0) { nh += ny; ny = 0; }
+    if (nx + nw > imgW) nw = imgW - nx;
+    if (ny + nh > imgH) nh = imgH - ny;
+    nw = Math.max(CROP_MIN, nw); nh = Math.max(CROP_MIN, nh);
+  }
+  return { x: nx, y: ny, width: nw, height: nh, rotation: start.rotation ?? 0 };
+}
+
 export function EditorCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -49,6 +138,12 @@ export function EditorCanvas() {
   const spaceDown = useRef(false);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, stageX: 0, stageY: 0 });
+  // Crop gesture (resize/move/rotate). cropPushed guards a single undo snapshot
+  // per gesture; cropCursor drives the hover cursor over the crop controls.
+  const cropDrag = useRef<CropDrag>(null);
+  const cropPushed = useRef(false);
+  const cropCursorRef = useRef('crosshair');
+  const [cropCursor, setCropCursor] = useState('crosshair');
 
   const store = useEditorStore();
   const {
@@ -118,16 +213,37 @@ export function EditorCanvas() {
   // drawing, so committing an annotation never yanks the user's zoom/pan.
   useEffect(() => {
     if (!hasDoc || containerSize.width === 0 || containerSize.height === 0) return;
-    const bounds = measureContentBounds();
+    // A committed crop (any tool but crop, non-trivial) frames just the crop
+    // region; otherwise frame the whole composition. Read live state so this isn't
+    // re-triggered on every crop edit — only on fitNonce/resize/new-doc.
+    const st = useEditorStore.getState();
+    const cr = st.cropRect;
+    const trivial = !!cr && !cr.rotation && cr.x <= 0 && cr.y <= 0
+      && cr.width >= st.screenshot.width && cr.height >= st.screenshot.height;
+    const cropView = !!cr && st.activeTool !== 'crop' && !trivial;
+    const bounds = cropView ? { x: cr!.x, y: cr!.y, width: cr!.width, height: cr!.height } : measureContentBounds();
+    // A committed crop zooms to fill the viewport (cap at max zoom); normal docs
+    // never upscale past 100%.
     const scale = Math.min(
       containerSize.width / bounds.width,
       containerSize.height / bounds.height,
-      1
+      cropView ? 8 : 1
     );
     const x = (containerSize.width - bounds.width * scale) / 2 - bounds.x * scale;
     const y = (containerSize.height - bounds.height * scale) / 2 - bounds.y * scale;
     setView({ scale, x, y });
   }, [screenshot.url, containerSize.width, containerSize.height, fitNonce, hasDoc, measureContentBounds]);
+
+  // Re-fit on crop-tool transitions: entering frames the whole image (to adjust),
+  // leaving frames the committed crop. Other tool changes don't refit.
+  const prevToolRef = useRef(activeTool);
+  useEffect(() => {
+    const was = prevToolRef.current;
+    prevToolRef.current = activeTool;
+    if (was !== activeTool && (was === 'crop' || activeTool === 'crop')) {
+      useEditorStore.getState().requestFit();
+    }
+  }, [activeTool]);
 
   // Update transformer on selection change
   useEffect(() => {
@@ -147,6 +263,19 @@ export function EditorCanvas() {
 
   const getPointerPos = useCallback(() => {
     return stageRef.current?.getRelativePointerPosition() ?? { x: 0, y: 0 };
+  }, []);
+
+  // Pointer position in the ANNOTATIONS layer's space. Identical to stage space
+  // until a crop straighten rotates the content layers — then it inverse-rotates,
+  // so a shape drawn on the tilted image lands exactly under the cursor once it
+  // renders through the layer rotation. The crop frame itself stays in stage
+  // space (it's upright by design), so crop interactions use getPointerPos.
+  const getDrawPos = useCallback(() => {
+    const stage = stageRef.current;
+    const layer = stage?.getLayers()[1];
+    return layer?.getRelativePointerPosition()
+      ?? stage?.getRelativePointerPosition()
+      ?? { x: 0, y: 0 };
   }, []);
 
   const handlePointerDown = useCallback((e: KonvaEventObject<PointerEvent>) => {
@@ -170,7 +299,9 @@ export function EditorCanvas() {
     // Ctrl-click falls through to the shape's own drag handling — never draw
     if (e.evt.ctrlKey && activeTool !== 'select') return;
 
-    const pos = getPointerPos();
+    // Crop works in stage/document space (the frame is upright); annotations are
+    // captured in the (possibly rotated) annotation layer's space.
+    const pos = activeTool === 'crop' ? getPointerPos() : getDrawPos();
     dragStartPos.current = pos;
 
     if (activeTool === 'select') {
@@ -202,6 +333,37 @@ export function EditorCanvas() {
       return;
     }
 
+    // Crop: adjust the existing frame via geometric hit-testing of its handles /
+    // body / rotate knob; a drag on empty canvas starts a fresh crop region.
+    if (activeTool === 'crop') {
+      const cr = useEditorStore.getState().cropRect;
+      if (cr) {
+        const hit = cropHitTest(pos, cr, view.scale);
+        cropPushed.current = false;
+        if (hit === 'move') {
+          cropDrag.current = { mode: 'move', start: cr, startPos: pos };
+          return;
+        }
+        if (hit === 'rotate') {
+          const cx = cr.x + cr.width / 2, cy = cr.y + cr.height / 2;
+          cropDrag.current = {
+            mode: 'rotate', start: cr, cx, cy,
+            startAngle: Math.atan2(pos.y - cy, pos.x - cx), startRotation: cr.rotation ?? 0,
+          };
+          return;
+        }
+        if (hit) {
+          cropDrag.current = { mode: 'resize', handle: hit, start: cr };
+          return;
+        }
+      }
+      // Empty-canvas drag → draw a fresh crop rectangle.
+      isDrawing.current = true;
+      setSelectedId(null);
+      setInProgress({ type: 'rect', x: pos.x, y: pos.y, width: 0, height: 0 });
+      return;
+    }
+
     isDrawing.current = true;
     setSelectedId(null); // starting a new draw drops any prior selection
 
@@ -215,10 +377,8 @@ export function EditorCanvas() {
       setInProgress({ type: activeTool, points: [pos.x, pos.y, pos.x, pos.y] });
     } else if (activeTool === 'pen' || activeTool === 'highlight') {
       setInProgress({ type: activeTool, points: [pos.x, pos.y] });
-    } else if (activeTool === 'crop') {
-      setInProgress({ type: 'rect', x: pos.x, y: pos.y, width: 0, height: 0 });
     }
-  }, [activeTool, view, strokeColor, fontSize, addAnnotation, setSelectedId, setEditingTextId, getPointerPos]);
+  }, [activeTool, view, strokeColor, fontSize, addAnnotation, setSelectedId, setEditingTextId, getPointerPos, getDrawPos]);
 
   const handlePointerMove = useCallback((e: KonvaEventObject<PointerEvent>) => {
     if (isPanning.current) {
@@ -228,8 +388,38 @@ export function EditorCanvas() {
       return;
     }
 
+    // Crop gesture (resize / move / rotate). One undo snapshot per gesture.
+    if (cropDrag.current) {
+      const d = cropDrag.current;
+      const cp = getPointerPos();
+      if (!cropPushed.current) { useEditorStore.getState().pushHistory(); cropPushed.current = true; }
+      if (d.mode === 'move') {
+        let nx = d.start.x + (cp.x - d.startPos.x);
+        let ny = d.start.y + (cp.y - d.startPos.y);
+        if (!d.start.rotation) {
+          nx = Math.max(0, Math.min(nx, screenshot.width - d.start.width));
+          ny = Math.max(0, Math.min(ny, screenshot.height - d.start.height));
+        }
+        setCropRect({ ...d.start, x: nx, y: ny });
+      } else if (d.mode === 'rotate') {
+        const ang = Math.atan2(cp.y - d.cy, cp.x - d.cx);
+        const deg = Math.max(-45, Math.min(45, d.startRotation + (ang - d.startAngle) * 180 / Math.PI));
+        setCropRect({ ...d.start, rotation: Math.round(deg * 10) / 10 });
+      } else {
+        setCropRect(resizeCropRect(d.start, d.handle, cp, useEditorStore.getState().cropAspect, screenshot.width, screenshot.height));
+      }
+      return;
+    }
+
+    // Hover cursor over the crop controls when idle (not drawing a fresh region).
+    if (activeTool === 'crop' && !isDrawing.current) {
+      const cr = useEditorStore.getState().cropRect;
+      const c = cropCursorFor(cr ? cropHitTest(getPointerPos(), cr, view.scale) : null);
+      if (c !== cropCursorRef.current) { cropCursorRef.current = c; setCropCursor(c); }
+    }
+
     if (!isDrawing.current || !inProgress) return;
-    const pos = getPointerPos();
+    const pos = activeTool === 'crop' ? getPointerPos() : getDrawPos();
 
     if (inProgress.type === 'rect' || inProgress.type === 'pixelate' || inProgress.type === 'loupe' || inProgress.type === 'spotlight' || inProgress.type === 'shape') {
       setInProgress({
@@ -253,16 +443,19 @@ export function EditorCanvas() {
     } else if (inProgress.type === 'pen' || inProgress.type === 'highlight') {
       setInProgress({ type: inProgress.type, points: [...inProgress.points, pos.x, pos.y] });
     }
-  }, [inProgress, getPointerPos, setView]);
+  }, [inProgress, getPointerPos, getDrawPos, setView, activeTool, view, screenshot.width, screenshot.height, setCropRect]);
 
   const handlePointerUp = useCallback((e: KonvaEventObject<PointerEvent>) => {
     if (isPanning.current) { isPanning.current = false; return; }
+
+    // End a crop resize/move/rotate gesture (history already snapshotted on first move).
+    if (cropDrag.current) { cropDrag.current = null; cropPushed.current = false; return; }
 
     // Create text here (not on pointerdown): focus only moves on mousedown,
     // so a textarea mounted after the release keeps focus and typing starts
     // immediately.
     if (activeTool === 'text' && e.evt.button === 0 && !e.evt.ctrlKey) {
-      const pos = getPointerPos();
+      const pos = getDrawPos();
       const id = nanoid();
       addAnnotation({
         id, type: 'text',
@@ -279,6 +472,7 @@ export function EditorCanvas() {
     isDrawing.current = false;
 
     if (activeTool === 'crop' && inProgress.type === 'rect' && inProgress.width > 5 && inProgress.height > 5) {
+      useEditorStore.getState().pushHistory();
       setCropRect({ x: inProgress.x, y: inProgress.y, width: inProgress.width, height: inProgress.height });
       setInProgress(null);
       return;
@@ -368,7 +562,7 @@ export function EditorCanvas() {
       setSelectedId(committed.id);
     }
     setInProgress(null);
-  }, [activeTool, inProgress, strokeColor, strokeWidth, fontSize, addAnnotation, setCropRect, setSelectedId, setEditingTextId, getPointerPos]);
+  }, [activeTool, inProgress, strokeColor, strokeWidth, fontSize, addAnnotation, setCropRect, setSelectedId, setEditingTextId, getPointerPos, getDrawPos]);
 
   const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -533,32 +727,83 @@ export function EditorCanvas() {
   const imgWidth = screenshot.width;
   const imgHeight = screenshot.height;
 
-  // Crop overlay pieces
-  const cropOverlay = cropRect && activeTool === 'crop' ? (
-    <>
-      {/* top */}
-      <Rect x={0} y={0} width={imgWidth} height={cropRect.y} fill="rgba(0,0,0,0.5)" listening={false} />
-      {/* bottom */}
-      <Rect x={0} y={cropRect.y + cropRect.height} width={imgWidth} height={imgHeight - cropRect.y - cropRect.height} fill="rgba(0,0,0,0.5)" listening={false} />
-      {/* left */}
-      <Rect x={0} y={cropRect.y} width={cropRect.x} height={cropRect.height} fill="rgba(0,0,0,0.5)" listening={false} />
-      {/* right */}
-      <Rect x={cropRect.x + cropRect.width} y={cropRect.y} width={imgWidth - cropRect.x - cropRect.width} height={cropRect.height} fill="rgba(0,0,0,0.5)" listening={false} />
-      {/* dashed border */}
-      <Rect
-        x={cropRect.x} y={cropRect.y} width={cropRect.width} height={cropRect.height}
-        stroke="white" strokeWidth={1} dash={[6, 3]} fill="transparent" listening={false}
-      />
-    </>
-  ) : null;
+  // Crop straighten rotates the image (and annotations) on the content layers,
+  // pivoting on the crop center. Applied whenever a rotation is set — both the
+  // crop-tool preview and the committed view — so the editor matches the export
+  // (which captures the rotated content verbatim). Always a full object so the
+  // transform resets to identity when rotation is cleared (react-konva only
+  // rewrites props that are present).
+  const cropRot = cropRect?.rotation ?? 0;
+  const cropCx = cropRect ? cropRect.x + cropRect.width / 2 : 0;
+  const cropCy = cropRect ? cropRect.y + cropRect.height / 2 : 0;
+  const layerRotProps = {
+    rotation: cropRot,
+    offsetX: cropRot ? cropCx : 0,
+    offsetY: cropRot ? cropCy : 0,
+    x: cropRot ? cropCx : 0,
+    y: cropRot ? cropCy : 0,
+  };
+  // A full-image, unrotated crop trims nothing — treat it as "no crop" for display.
+  const cropTrivial = !!cropRect && !cropRot
+    && cropRect.x <= 0 && cropRect.y <= 0
+    && cropRect.width >= imgWidth && cropRect.height >= imgHeight;
+  // Once committed (any tool but crop), show the cropped result Photoshop-style:
+  // an opaque matte (canvas color) covers everything outside the crop rect, and
+  // the fit effect frames the crop. Done with document-space rects — which honor
+  // the stage zoom/pan — NOT a Konva layer clip, whose region ignores the stage
+  // transform (clip + scaled content miss each other → blank canvas).
+  const cropApplied = !!cropRect && activeTool !== 'crop' && !cropTrivial;
+  const cropMatte = cropApplied && cropRect ? (() => {
+    const { x, y, width: w, height: h } = cropRect;
+    const BIG = 100000;
+    return (
+      <>
+        <Rect x={x - BIG} y={y - BIG} width={w + 2 * BIG} height={BIG} fill="#181818" listening={false} />
+        <Rect x={x - BIG} y={y + h} width={w + 2 * BIG} height={BIG} fill="#181818" listening={false} />
+        <Rect x={x - BIG} y={y} width={BIG} height={h} fill="#181818" listening={false} />
+        <Rect x={x + w} y={y} width={BIG} height={h} fill="#181818" listening={false} />
+      </>
+    );
+  })() : null;
 
-  // Subtle reminder that a crop is set while using other tools (export will trim to it)
-  const cropIndicator = cropRect && activeTool !== 'crop' ? (
-    <Rect
-      x={cropRect.x} y={cropRect.y} width={cropRect.width} height={cropRect.height}
-      stroke="rgba(255,255,255,0.5)" strokeWidth={1} dash={[4, 4]} fill="transparent" listening={false}
-    />
-  ) : null;
+  // Interactive crop overlay: dim outside + rule-of-thirds + frame + 8 resize
+  // handles + a rotate knob. Every node is visual only (listening=false) — the
+  // pointer handlers do geometric hit-testing — so it is immune to the content
+  // rotation above and renders at a constant on-screen size (÷ stage scale).
+  // Hidden while dragging out a fresh region.
+  const cropUI = activeTool === 'crop' && cropRect && !inProgress ? (() => {
+    const sc = view.scale;
+    const { x, y, width: w, height: h } = cropRect;
+    const cx = x + w / 2, cy = y + h / 2;
+    const BIG = 100000; // dim extends far past the page so the whole canvas darkens
+    const hs = CROP_HANDLE_PX / sc, hh = hs / 2;
+    const lw = 1 / sc;
+    const rotDist = CROP_ROT_PX / sc, rotR = 5.5 / sc;
+    const dimFill = 'rgba(0,0,0,0.5)';
+    const handlePts: [number, number][] = [
+      [x, y], [x + w, y], [x + w, y + h], [x, y + h],   // corners
+      [cx, y], [x + w, cy], [cx, y + h], [x, cy],         // edge midpoints
+    ];
+    return (
+      <>
+        <Rect x={x - BIG} y={y - BIG} width={w + 2 * BIG} height={BIG} fill={dimFill} listening={false} />
+        <Rect x={x - BIG} y={y + h} width={w + 2 * BIG} height={BIG} fill={dimFill} listening={false} />
+        <Rect x={x - BIG} y={y} width={BIG} height={h} fill={dimFill} listening={false} />
+        <Rect x={x + w} y={y} width={BIG} height={h} fill={dimFill} listening={false} />
+        <Line points={[x + w / 3, y, x + w / 3, y + h]} stroke="rgba(255,255,255,0.35)" strokeWidth={lw} listening={false} />
+        <Line points={[x + 2 * w / 3, y, x + 2 * w / 3, y + h]} stroke="rgba(255,255,255,0.35)" strokeWidth={lw} listening={false} />
+        <Line points={[x, y + h / 3, x + w, y + h / 3]} stroke="rgba(255,255,255,0.35)" strokeWidth={lw} listening={false} />
+        <Line points={[x, y + 2 * h / 3, x + w, y + 2 * h / 3]} stroke="rgba(255,255,255,0.35)" strokeWidth={lw} listening={false} />
+        <Rect x={x} y={y} width={w} height={h} stroke="#fff" strokeWidth={lw * 1.5} listening={false} />
+        <Line points={[cx, y, cx, y - rotDist]} stroke="#fff" strokeWidth={lw} listening={false} />
+        <Circle x={cx} y={y - rotDist} radius={rotR} fill="#fff" listening={false} />
+        {handlePts.map(([hx, hy], i) => (
+          <Rect key={i} x={hx - hh} y={hy - hh} width={hs} height={hs}
+            fill="#fff" stroke="rgba(0,0,0,0.45)" strokeWidth={lw} listening={false} />
+        ))}
+      </>
+    );
+  })() : null;
 
   // Crop preview when drawing crop
   const cropInProgressPreview = activeTool === 'crop' && inProgress?.type === 'rect' ? (
@@ -576,7 +821,7 @@ export function EditorCanvas() {
     if (ctrlDown && activeTool !== 'select') return 'default';
     if (activeTool === 'select') return 'default';
     if (activeTool === 'text') return 'text';
-    if (activeTool === 'crop') return 'crosshair';
+    if (activeTool === 'crop') return cropCursor;
     return 'crosshair';
   };
 
@@ -645,8 +890,8 @@ export function EditorCanvas() {
         style={{ cursor: getCursor() }}
       >
         {/* Layer 1: Backdrop (behind) + background image. Both are captured by
-            toDataURL on export. */}
-        <Layer listening={false}>
+            toDataURL on export. Rotated in place by the crop straighten. */}
+        <Layer listening={false} {...layerRotProps}>
           {/* Board page fill (a board has no image). 'transparent' draws nothing
               so the dark editor / dot grid shows through and export keeps alpha. */}
           {isBoard && boardBackground !== 'transparent' && (
@@ -682,12 +927,15 @@ export function EditorCanvas() {
         {/* Layer 2: Annotations — only interactive with the select tool (or
             Ctrl held as a temporary move tool); otherwise strokes that start
             on top of a shape must draw, not drag it. */}
-        <Layer listening={activeTool === 'select' || ctrlDown}>
+        <Layer listening={activeTool === 'select' || ctrlDown} {...layerRotProps}>
           {annotations.map(renderAnnotation)}
         </Layer>
 
-        {/* Layer 3: In-progress drawing */}
-        <Layer listening={false}>
+        {/* Layer 3: In-progress drawing. Carries the same straighten rotation as
+            the content layers so previews track the cursor (coords are captured
+            in the rotated space via getDrawPos). The crop draw-preview lives in
+            the unrotated overlay layer instead — the crop frame is upright. */}
+        <Layer listening={false} {...layerRotProps}>
           {inProgress && activeTool !== 'crop' && (
             <>
               {(inProgress.type === 'rect' || inProgress.type === 'loupe' || inProgress.type === 'spotlight') && (
@@ -752,7 +1000,6 @@ export function EditorCanvas() {
               )}
             </>
           )}
-          {cropInProgressPreview}
         </Layer>
 
         {/* Layer 4: Overlay (crop + transformer) */}
@@ -768,8 +1015,9 @@ export function EditorCanvas() {
               listening={false}
             />
           )}
-          {cropOverlay}
-          {cropIndicator}
+          {cropMatte}
+          {cropUI}
+          {cropInProgressPreview}
           <Transformer
             ref={transformerRef}
             rotateEnabled={false}
@@ -789,9 +1037,17 @@ export function EditorCanvas() {
       {editingTextId && hasDoc && (() => {
         const textAnno = annotations.find((a) => a.id === editingTextId) as TextAnno | undefined;
         if (!textAnno) return null;
+        // Anno coords live in the (possibly rotated) annotation layer's space;
+        // the HTML textarea needs the stage-space point, so rotate it forward.
+        const rad = cropRot * Math.PI / 180;
+        const dx = textAnno.x - cropCx, dy = textAnno.y - cropCy;
+        const docPos = cropRot
+          ? { x: cropCx + dx * Math.cos(rad) - dy * Math.sin(rad), y: cropCy + dx * Math.sin(rad) + dy * Math.cos(rad) }
+          : { x: textAnno.x, y: textAnno.y };
         return (
           <TextEditOverlay
             anno={textAnno}
+            docPos={docPos}
             stageRef={stageRef}
             containerRef={containerRef}
             view={view}

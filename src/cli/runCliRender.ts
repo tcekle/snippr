@@ -6,7 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type Konva from 'konva';
 import { useEditorStore } from '../store/editorStore';
 import { buildSaveBody } from '../utils/exportPng';
-import type { Annotation } from '../types/annotations';
+import type { Annotation, CropRect } from '../types/annotations';
 import type { BackdropConfig } from '../types/backdrop';
 
 interface CliJob {
@@ -17,7 +17,7 @@ interface CliJob {
 interface SceneInput {
   annotations?: Annotation[];
   backdrop?: BackdropConfig | null;
-  cropRect?: { x: number; y: number; width: number; height: number } | null;
+  cropRect?: CropRect | null;
   boardBackground?: string | null;
 }
 

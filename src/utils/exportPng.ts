@@ -70,12 +70,18 @@ function renderAnnotatedPng(): Uint8Array {
     boardBg ? boardBg :                 // board color
     CANVAS_BG;                          // screenshot: existing gray backdrop
 
-  let bgRect: Konva.Rect | null = null;
+  // Background fill goes on a TEMPORARY bottom layer so corners left empty by a
+  // straightened (rotated) crop still get filled. The content layers already
+  // carry the crop straighten rotation from the live render (a rotated Group
+  // pinned to the crop center), so export only needs to capture the upright crop
+  // rect. Build the fill rect with explicit x/y/width/height — never spread
+  // `...rect`, since `rect` may carry a `rotation` field that would rotate it.
+  let bgLayer: Konva.Layer | null = null;
   if (fillColor) {
-    bgRect = new Konva.Rect({ ...rect, fill: fillColor, listening: false });
-    const bgLayer = stage.getLayers()[0];
-    bgLayer.add(bgRect);
-    bgRect.moveToBottom();
+    bgLayer = new Konva.Layer({ listening: false });
+    bgLayer.add(new Konva.Rect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height, fill: fillColor }));
+    stage.add(bgLayer);
+    bgLayer.moveToBottom();
     stage.batchDraw();
   }
 
@@ -89,7 +95,7 @@ function renderAnnotatedPng(): Uint8Array {
   });
 
   // Restore view
-  if (bgRect) bgRect.destroy();
+  if (bgLayer) bgLayer.destroy();
   stage.scale({ x: savedView.scale, y: savedView.scale });
   stage.position({ x: savedView.x, y: savedView.y });
   if (overlayLayer) overlayLayer.visible(true);
