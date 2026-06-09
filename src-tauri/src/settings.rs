@@ -23,10 +23,6 @@ pub struct SnipprSettings {
     /// false = only trigger on Snipping Tool clipboard writes; true = any new image.
     pub trigger_on_any_image: bool,
     pub autostart: bool,
-    /// User-defined beautify backdrop swatches. No palette is bundled in the app;
-    /// this is the only place one lives. `null` = none defined yet. Opaque here —
-    /// the frontend owns the `[{ label, fill }]` shape.
-    pub backdrop_palette: serde_json::Value,
 }
 
 impl Default for SnipprSettings {
@@ -37,7 +33,6 @@ impl Default for SnipprSettings {
             copy_to_clipboard: true,
             trigger_on_any_image: false,
             autostart: false,
-            backdrop_palette: serde_json::Value::Null,
         }
     }
 }

@@ -5,7 +5,7 @@ import { useScreenshot } from './hooks/useScreenshot';
 import { useImageImport } from './hooks/useImageImport';
 import { useWatcherState } from './hooks/useWatcherState';
 import { useSettingsListener } from './hooks/useSettingsListener';
-import { useSettingsBootstrap } from './hooks/useSettingsBootstrap';
+import { usePaletteBootstrap } from './hooks/usePaletteBootstrap';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { copyAnnotated, saveAnnotatedAs, saveFlatAs } from './utils/exportPng';
 import { openImageFile } from './utils/openFile';
@@ -25,7 +25,7 @@ function App() {
   useScreenshot();
   useWatcherState();
   useSettingsListener();
-  useSettingsBootstrap();
+  usePaletteBootstrap();
   const { isDragging } = useImageImport();
 
   // Listen for scrolling capture errors emitted by the Rust side

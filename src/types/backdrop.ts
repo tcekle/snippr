@@ -16,8 +16,11 @@ export interface BackdropConfig {
 
 export interface BackdropPreset { label: string; fill: BackdropFill; }
 
+/** A named, file-backed beautify palette (see src-tauri/src/palettes.rs). */
+export interface Palette { name: string; swatches: BackdropPreset[]; }
+
 // Built-in fallback palette. No brand colors are bundled — the user's own
-// palette is defined in settings.json (`backdropPalette`) and loaded at launch.
+// palettes live as files in palettes/ beside the exe (see src-tauri/src/palettes.rs).
 export const CLASSIC_BACKDROP_PRESETS: BackdropPreset[] = [
   { label: 'Sunset', fill: { kind: 'gradient', from: '#ffd5a8', to: '#a78bfa', angle: 135 } },
   { label: 'Ocean',  fill: { kind: 'gradient', from: '#0ea5e9', to: '#6366f1', angle: 135 } },

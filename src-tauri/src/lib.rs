@@ -6,6 +6,7 @@ mod cursor;
 mod mcp;
 mod export;
 mod gif_export;
+mod palettes;
 mod png_embed;
 mod screen_recording;
 mod scrolling_capture;
@@ -64,6 +65,11 @@ pub fn run() {
             commands::open_save_folder,
             commands::hide_window,
             commands::read_image_file,
+            palettes::list_palettes,
+            palettes::save_palette,
+            palettes::delete_palette,
+            palettes::import_palette,
+            palettes::export_palette,
             scrolling_capture::begin_scrolling_selection,
             scrolling_capture::begin_snapshot_selection,
             scrolling_capture::get_selection_mode,

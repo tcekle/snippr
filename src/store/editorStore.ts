@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import Konva from 'konva';
 import { nanoid } from 'nanoid';
 import type { Annotation, ToolType } from '../types/annotations';
-import type { BackdropConfig, BackdropPreset } from '../types/backdrop';
+import type { BackdropConfig, Palette } from '../types/backdrop';
 import { DEFAULT_BACKDROP } from '../types/backdrop';
 import { DEFAULT_BOARD } from '../types/board';
 
@@ -12,8 +12,6 @@ export interface SnipprSettings {
   copyToClipboard: boolean;
   triggerOnAnyImage: boolean;
   autostart: boolean;
-  /** User-defined beautify swatches; null = no palette defined yet. */
-  backdropPalette: BackdropPreset[] | null;
 }
 
 interface HistoryEntry {
@@ -107,8 +105,8 @@ interface EditorState {
   view: ViewState;
   paused: boolean;
   settingsOpen: boolean;
-  /** User-defined beautify palette, loaded from settings.json (empty until defined). */
-  customPalette: BackdropPreset[];
+  /** Named beautify palettes loaded from the palettes/ folder beside the exe. */
+  palettes: Palette[];
   stageRef: Konva.Stage | null;
   /** Incremented to ask EditorCanvas (which owns container size) to re-fit the view. */
   fitNonce: number;
@@ -140,7 +138,7 @@ interface EditorActions {
   setEditingTextId: (id: string | null) => void;
   setPaused: (paused: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
-  setCustomPalette: (palette: BackdropPreset[]) => void;
+  setPalettes: (palettes: Palette[]) => void;
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
   setFontSize: (size: number) => void;
@@ -181,7 +179,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   view: { scale: 1, x: 0, y: 0 },
   paused: false,
   settingsOpen: false,
-  customPalette: [],
+  palettes: [],
   stageRef: null,
   fitNonce: 0,
   tabs: [],
@@ -409,8 +407,8 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
     set({ settingsOpen: open });
   },
 
-  setCustomPalette: (palette) => {
-    set({ customPalette: palette });
+  setPalettes: (palettes) => {
+    set({ palettes });
   },
 
   setStrokeColor: (color) => {
