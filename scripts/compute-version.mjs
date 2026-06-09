@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // MinVer-style version derivation from git tags + commit height.
 //
-//   HEAD exactly on tag vX.Y.Z   ->  X.Y.Z              (a release)
-//   N commits past tag vX.Y.Z    ->  X.Y.(Z+1)-alpha.N  (next patch, pre-release)
-//   no vX.Y.Z tag reachable      ->  0.0.0-alpha.<commit-count>
+//   HEAD exactly on tag vX.Y.Z   ->  X.Y.Z          (a release)
+//   N commits past tag vX.Y.Z    ->  X.Y.(Z+1)-N    (next patch, pre-release)
+//   no vX.Y.Z tag reachable      ->  0.0.0-<commit-count>
 //
-// The stamped string stays MSI-safe: WiX/NSIS only consume the numeric
-// major.minor.patch core, and SemVer build-metadata (+gSHA) can trip the MSI
-// ProductVersion — so the short sha is reported as a separate output, never
-// baked into the version. Patch is the auto-incremented part (MinVer default).
+// MSI constraint (learned from the bundler the hard way): the pre-release must
+// be a single NUMERIC identifier <= 65535 — Tauri maps it into the Windows
+// installer version. So no "alpha" label and no +gSHA build-metadata in the
+// stamped string; the bare commit height is the pre-release, and the short sha
+// is reported only as a separate output. Patch is the auto-incremented part.
 //
 // Usage:
 //   node scripts/compute-version.mjs            # print the version to stdout
@@ -39,15 +40,19 @@ function compute() {
   const m = described.match(/^v(\d+)\.(\d+)\.(\d+)-(\d+)-g([0-9a-f]+)$/);
   let version, height, sha;
 
+  // MSI caps the numeric pre-release at 65535; clamp defensively (only reachable
+  // in the no-tag bootstrap case with an enormous history — tagging resets it).
+  const pre = (n) => Math.min(n, 65535);
+
   if (m) {
     const [maj, min, pat] = [Number(m[1]), Number(m[2]), Number(m[3])];
     height = Number(m[4]);
     sha = m[5];
-    version = height === 0 ? `${maj}.${min}.${pat}` : `${maj}.${min}.${pat + 1}-alpha.${height}`;
+    version = height === 0 ? `${maj}.${min}.${pat}` : `${maj}.${min}.${pat + 1}-${pre(height)}`;
   } else {
     height = Number(git('rev-list --count HEAD'));
     try { sha = git('rev-parse --short=7 HEAD'); } catch { sha = '0000000'; }
-    version = `0.0.0-alpha.${height}`;
+    version = `0.0.0-${pre(height)}`;
   }
 
   return { version, full: `${version}+g${sha}`, height, sha };
