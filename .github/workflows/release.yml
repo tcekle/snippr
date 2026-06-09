@@ -1,0 +1,91 @@
+name: release
+
+# One-click release (manual dispatch). Builds the MSI + standalone exe, tags the
+# current commit vX.Y.Z, and publishes a GitHub Release with both attached.
+# The tag is created locally first so the build stamps the exact version, then
+# pushed only after the build succeeds — a failed build never strands a tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, X.Y.Z with no v prefix (e.g. 1.0.0)
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write # push the tag and create the release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ inputs.version }}
+
+    steps:
+      # Version arrives via env (not interpolated into the script body) to avoid
+      # workflow injection; reject anything that isn't a bare X.Y.Z.
+      - name: Validate version
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') { throw "version must be X.Y.Z with no v prefix, got '$env:VERSION'" }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags for git-describe and the tag guard
+
+      - name: Guard against an existing tag
+        shell: pwsh
+        run: |
+          git fetch --tags --quiet
+          if (git tag --list $env:TAG) { throw "tag $env:TAG already exists" }
+
+      # Local lightweight tag so compute-version resolves to exactly X.Y.Z
+      # (height 0). Pushed only after a successful build, near the end.
+      - name: Tag locally
+        run: git tag $env:TAG
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Stamp version
+        run: node scripts/compute-version.mjs --write
+
+      - name: Build (MSI + exe)
+        run: npm run tauri build -- --bundles msi
+
+      - name: Stage release assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          Copy-Item src-tauri/target/release/bundle/msi/*.msi release-assets/
+          Copy-Item src-tauri/target/release/snippr.exe "release-assets/snippr-$env:TAG.exe"
+
+      # Build passed — publish the tag, then cut the release with notes + assets.
+      - name: Push tag
+        run: git push origin $env:TAG
+
+      - name: Create GitHub Release
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem release-assets | ForEach-Object FullName
+          gh release create $env:TAG $assets --title $env:TAG --generate-notes

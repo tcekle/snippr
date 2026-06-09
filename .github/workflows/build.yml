@@ -9,7 +9,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags: ['v*']
+    paths-ignore: # docs-only changes don't need a full MSI build
+      - '**/*.md'
+      - 'docs/**'
+# Release tags are handled by release.yml, not here, to avoid a double build.
 
 # The pinned actions still ship a Node 20 runtime (deprecated). Opt them onto
 # Node 24 now — GitHub's documented forward-compat switch until their majors bump.
