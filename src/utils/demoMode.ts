@@ -2,6 +2,7 @@
 // Generates a fake app-window "screenshot" and loads it with sample annotations.
 import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
+import type { FrameStyle } from '../types/backdrop';
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
@@ -154,8 +155,11 @@ export async function maybeLoadDemo(): Promise<void> {
 
   // `?demo=1&backdrop=1` also turns the Beautify backdrop on (default config)
   // and selects the Backdrop tool so its panel section is visible.
+  // `&frame=none|macos|windows|browser` overrides the window-frame style.
   if (params.has('backdrop')) {
-    s.setBackdrop({});
+    const frames = ['none', 'macos', 'windows', 'browser'];
+    const f = params.get('frame');
+    s.setBackdrop(f && frames.includes(f) ? { frame: f as FrameStyle } : {});
     s.setTool('backdrop');
   }
 

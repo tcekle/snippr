@@ -268,7 +268,7 @@
         },
         "cornerRadius": { "type": "number", "description": "image corner radius, px" },
         "shadow": { "type": "boolean" },
-        "frame": { "enum": ["none", "macos", "browser"], "description": "fake window chrome above the image" },
+        "frame": { "enum": ["none", "macos", "windows", "browser"], "description": "fake window chrome above the image" },
         "aspect": { "enum": ["auto", "1:1", "16:9", "4:3"] }
       }
     }

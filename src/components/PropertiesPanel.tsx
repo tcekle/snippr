@@ -460,7 +460,7 @@ function BackdropControls() {
         <Label>Window Frame</Label>
         <Segmented<FrameStyle>
           value={b.frame}
-          options={['none', 'macos', 'browser']}
+          options={['none', 'macos', 'windows', 'browser']}
           onChange={(v) => setBackdrop({ frame: v })}
         />
       </div>

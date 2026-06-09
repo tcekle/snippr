@@ -2,7 +2,7 @@ export type BackdropFill =
   | { kind: 'solid'; color: string }
   | { kind: 'gradient'; from: string; to: string; angle: number }; // degrees
 
-export type FrameStyle = 'none' | 'macos' | 'browser';
+export type FrameStyle = 'none' | 'macos' | 'windows' | 'browser';
 export type AspectMode = 'auto' | '1:1' | '16:9' | '4:3';
 
 export interface BackdropConfig {
@@ -48,7 +48,7 @@ export const DEFAULT_BACKDROP: BackdropConfig = {
 };
 
 export const FRAME_BAR_HEIGHT: Record<FrameStyle, number> = {
-  none: 0, macos: 28, browser: 36,
+  none: 0, macos: 28, windows: 32, browser: 36,
 };
 
 export function fillsEqual(a: BackdropFill, b: BackdropFill): boolean {
