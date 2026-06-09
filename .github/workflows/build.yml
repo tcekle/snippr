@@ -1,0 +1,56 @@
+name: build
+
+# Builds the production Tauri app on Windows and uploads two artifacts:
+#   - snippr-msi    the WiX MSI installer
+#   - snippr-exe    the standalone snippr.exe (also the CLI/MCP binary)
+# Tauri downloads the WiX toolset on demand, so no extra installer setup is needed.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend deps
+        run: npm ci
+
+      # Produces the MSI under bundle/msi and the release exe at target/release.
+      # `tauri build` (not `cargo build --release`) embeds the frontend so the exe
+      # serves tauri.localhost — required for the CLI/MCP render path to work.
+      - name: Build (MSI + exe)
+        run: npm run tauri build -- --bundles msi
+
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: snippr-msi
+          path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+      - name: Upload standalone binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: snippr-exe
+          path: src-tauri/target/release/snippr.exe
+          if-no-files-found: error
