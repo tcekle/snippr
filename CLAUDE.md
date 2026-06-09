@@ -33,6 +33,7 @@ npm run tauri build                                    # NSIS installer
 - **Canvas height cap is 16,000 px** (WebView2 texture limit) — taller bitmaps render blank.
 - **Badge numbers derive from `max(existing)+1`** at creation — there is no counter to increment.
 - **The `snippr generate` / `snippr mcp` CLI renders in a headless WebView, so build it with `tauri build` (`npx tauri build --no-bundle`), NOT `cargo build --release`.** A plain cargo release isn't a production Tauri app — it still loads `devUrl` (`localhost:1420`), so with no dev server the render window hangs to the 30s watchdog. The render window routes by the `cli-render` label, sets its own `WEBVIEW2_USER_DATA_FOLDER` (so it runs while the tray app holds the default folder), and exits via `std::process::exit` — `app.exit` leaves the OS status 0 and masks failures. `mcp` spawns `generate` as a subprocess of itself; the MCP server runs the *built* binary, so re-run `tauri build` and restart it after code changes.
+- **CI versioning is MinVer-style** (`scripts/compute-version.mjs`, run by `.github/workflows/build.yml`): latest `vX.Y.Z` tag + commit height → a version stamped into `package.json` / `tauri.conf.json` / `Cargo.toml` at build time only — never committed, tags are the source of truth. Checkout needs `fetch-depth: 0` or the runner has no tags to describe. **The MSI bundler rejects a pre-release identifier that isn't a single number ≤ 65535** (it maps to the Windows installer version), so the stamped format is `X.Y.Z` on a tag and `X.Y.(Z+1)-N` (bare numeric height) off it — no `alpha` label and no `+gSHA` build-metadata in the string; the short sha is a separate CI output. `npm run version:show` prints it locally.
 
 ## README screenshots
 
@@ -59,4 +60,4 @@ Frame per shot: `macos` for the full-app captures (editor/empty-state/beautify),
 - Commits: Conventional Commits, imperative subject ≤50 chars, body only for non-obvious why. No AI attribution lines.
 - Styling is inline `style={{...}}` with CSS vars (`--color-accent`, `--color-elevated`, `--color-border`, `--color-text[-muted]`) — no CSS framework, match the existing idiom.
 - Rust modules use section comment bars (`// ── … ──`) and doc comments that explain WHY.
-- After every milestone: commit and push `origin main`. Gitea push auth flakes intermittently — one retry always succeeds.
+- After every milestone: commit and push `origin main` (GitHub: `tcekle/snippr`).
