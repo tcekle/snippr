@@ -22,6 +22,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so git-describe versioning works
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -40,6 +42,13 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      # MinVer-style: derive the version from the latest vX.Y.Z tag + commit
+      # height and stamp it into package.json / tauri.conf.json / Cargo.toml.
+      # Stamped only here (not committed); exposes version/full/sha as outputs.
+      - name: Compute & stamp version
+        id: version
+        run: node scripts/compute-version.mjs --write
+
       # Produces the MSI under bundle/msi and the release exe at target/release.
       # `tauri build` (not `cargo build --release`) embeds the frontend so the exe
       # serves tauri.localhost — required for the CLI/MCP render path to work.
@@ -49,13 +58,13 @@ jobs:
       - name: Upload MSI installer
         uses: actions/upload-artifact@v4
         with:
-          name: snippr-msi
+          name: snippr-${{ steps.version.outputs.version }}-msi
           path: src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
 
       - name: Upload standalone binary
         uses: actions/upload-artifact@v4
         with:
-          name: snippr-exe
+          name: snippr-${{ steps.version.outputs.version }}-exe
           path: src-tauri/target/release/snippr.exe
           if-no-files-found: error
