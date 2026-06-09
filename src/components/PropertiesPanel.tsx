@@ -376,13 +376,13 @@ function SpotlightControls() {
 }
 
 function BackdropControls() {
-  const { backdrop, activeTool, setBackdrop, removeBackdrop, brandPalette } = useEditorStore();
+  const { backdrop, activeTool, setBackdrop, removeBackdrop, customPalette } = useEditorStore();
   const [customOpen, setCustomOpen] = useState(false);
   const [customColor, setCustomColor] = useState('#6b7280');
   if (activeTool !== 'backdrop') return null;
   const b = backdrop ?? DEFAULT_BACKDROP;
 
-  const allPresets = [...brandPalette, ...CLASSIC_BACKDROP_PRESETS];
+  const allPresets = [...customPalette, ...CLASSIC_BACKDROP_PRESETS];
   const customSelected = !allPresets.some((p) => fillsEqual(b.fill, p.fill)) && b.fill.kind === 'solid';
 
   const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 } as const;
@@ -403,10 +403,14 @@ function BackdropControls() {
     <>
       <div>
         <Label>Backdrop</Label>
-        <div style={gridStyle}>{brandPalette.map((p, i) => swatch(p, `dio-${i}`))}</div>
-        <div style={captionStyle}>Data I/O brand palette</div>
+        {customPalette.length > 0 && (
+          <>
+            <div style={gridStyle}>{customPalette.map((p, i) => swatch(p, `cu-${i}`))}</div>
+            <div style={captionStyle}>Palette</div>
+          </>
+        )}
 
-        <div style={{ ...gridStyle, marginTop: 10 }}>{CLASSIC_BACKDROP_PRESETS.map((p, i) => swatch(p, `cl-${i}`))}</div>
+        <div style={{ ...gridStyle, marginTop: customPalette.length > 0 ? 10 : 0 }}>{CLASSIC_BACKDROP_PRESETS.map((p, i) => swatch(p, `cl-${i}`))}</div>
         <div style={captionStyle}>Classic</div>
 
         <div style={{ ...gridStyle, marginTop: 10 }}>

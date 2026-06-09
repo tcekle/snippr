@@ -4,10 +4,10 @@ import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useEditorStore } from '../store/editorStore';
 import type { SnipprSettings } from '../store/editorStore';
-import { BACKDROP_PRESETS, fillToCss, type BackdropPreset } from '../types/backdrop';
+import { fillToCss, type BackdropPreset } from '../types/backdrop';
 
 export function SettingsModal() {
-  const { settingsOpen, setSettingsOpen, setBrandPalette } = useEditorStore();
+  const { settingsOpen, setSettingsOpen, setCustomPalette } = useEditorStore();
   const [settings, setSettings] = useState<SnipprSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,7 +45,7 @@ export function SettingsModal() {
     try {
       await invoke('set_settings', { settings });
       // Reflect palette edits in the live backdrop panel without a restart.
-      setBrandPalette(settings.backdropPalette ?? BACKDROP_PRESETS);
+      setCustomPalette(settings.backdropPalette ?? []);
       setSettingsOpen(false);
     } catch (e) {
       console.error(e);
@@ -54,8 +54,8 @@ export function SettingsModal() {
     }
   };
 
-  // null = never customized; seed the editor from the built-in brand palette.
-  const palette = settings?.backdropPalette ?? BACKDROP_PRESETS;
+  // null = none defined yet; start the editor empty so the user builds their own.
+  const palette = settings?.backdropPalette ?? [];
 
   return (
     <div
@@ -146,16 +146,14 @@ export function SettingsModal() {
 }
 
 // ── Beautify palette editor ───────────────────────────────────────────────────
-// Edits the Data I/O brand swatches that drive the backdrop tool. Persisted in
-// settings.json (next to the exe), so the palette travels with the app.
+// Edits the user's backdrop swatches. Persisted in settings.json (next to the
+// exe) — no palette is bundled in the app, so this is where one is defined.
 
 function PaletteEditor({ value, onChange }: { value: BackdropPreset[]; onChange: (p: BackdropPreset[]) => void }) {
   const updateAt = (i: number, preset: BackdropPreset) =>
     onChange(value.map((p, idx) => (idx === i ? preset : p)));
   const removeAt = (i: number) => onChange(value.filter((_, idx) => idx !== i));
   const add = () => onChange([...value, { label: 'New', fill: { kind: 'solid', color: '#6b7280' } }]);
-  // Clone so the live edits never mutate the module-level seed constants.
-  const reset = () => onChange(BACKDROP_PRESETS.map((p) => ({ label: p.label, fill: { ...p.fill } })));
 
   const setKind = (i: number, kind: 'solid' | 'gradient') => {
     const p = value[i];
@@ -171,15 +169,7 @@ function PaletteEditor({ value, onChange }: { value: BackdropPreset[]; onChange:
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <FieldLabel>Beautify Palette</FieldLabel>
-        <button onClick={reset} style={{
-          background: 'transparent', border: 'none', color: 'var(--color-text-muted)',
-          fontSize: 11, cursor: 'pointer', textDecoration: 'underline', padding: 0,
-        }}>
-          Reset to Data I/O
-        </button>
-      </div>
+      <FieldLabel>Beautify Palette</FieldLabel>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {value.map((p, i) => (
@@ -242,6 +232,12 @@ function PaletteEditor({ value, onChange }: { value: BackdropPreset[]; onChange:
           </div>
         ))}
       </div>
+
+      {value.length === 0 && (
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '2px 0 6px' }}>
+          No swatches yet — add your palette here (saved to settings.json).
+        </div>
+      )}
 
       <button onClick={add} style={{
         marginTop: 8, width: '100%', background: 'transparent', color: 'var(--color-text)',

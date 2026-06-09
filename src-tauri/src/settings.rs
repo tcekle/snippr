@@ -23,10 +23,9 @@ pub struct SnipprSettings {
     /// false = only trigger on Snipping Tool clipboard writes; true = any new image.
     pub trigger_on_any_image: bool,
     pub autostart: bool,
-    /// Beautify backdrop swatches (the Data I/O brand palette), externalized from
-    /// the bundle so they persist and can be edited in Settings. `null` = the
-    /// frontend falls back to its built-in seed. Opaque here — the frontend owns
-    /// the `[{ label, fill }]` shape.
+    /// User-defined beautify backdrop swatches. No palette is bundled in the app;
+    /// this is the only place one lives. `null` = none defined yet. Opaque here —
+    /// the frontend owns the `[{ label, fill }]` shape.
     pub backdrop_palette: serde_json::Value,
 }
 

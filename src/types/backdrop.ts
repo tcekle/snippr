@@ -16,19 +16,8 @@ export interface BackdropConfig {
 
 export interface BackdropPreset { label: string; fill: BackdropFill; }
 
-// Data I/O brand backdrops (from the corporate style guide).
-export const BACKDROP_PRESETS: BackdropPreset[] = [
-  { label: 'Navy',   fill: { kind: 'gradient', from: '#0A1628', to: '#054BAA', angle: 135 } }, // default
-  { label: 'Blue',   fill: { kind: 'gradient', from: '#054BAA', to: '#4A90D9', angle: 135 } },
-  { label: 'Teal',   fill: { kind: 'gradient', from: '#0891B2', to: '#4A90D9', angle: 135 } },
-  { label: 'Violet', fill: { kind: 'gradient', from: '#6D28D9', to: '#4A90D9', angle: 135 } },
-  { label: 'Dark',   fill: { kind: 'solid', color: '#0A1628' } },
-  { label: 'Tint',   fill: { kind: 'solid', color: '#E8F0FC' } },
-  { label: 'Paper',  fill: { kind: 'solid', color: '#F8F9FA' } },
-  { label: 'Amber',  fill: { kind: 'gradient', from: '#FEB034', to: '#B35D00', angle: 135 } },
-];
-
-// The original snippr backdrop palette, kept alongside the brand presets.
+// Built-in fallback palette. No brand colors are bundled — the user's own
+// palette is defined in settings.json (`backdropPalette`) and loaded at launch.
 export const CLASSIC_BACKDROP_PRESETS: BackdropPreset[] = [
   { label: 'Sunset', fill: { kind: 'gradient', from: '#ffd5a8', to: '#a78bfa', angle: 135 } },
   { label: 'Ocean',  fill: { kind: 'gradient', from: '#0ea5e9', to: '#6366f1', angle: 135 } },
@@ -40,7 +29,7 @@ export const CLASSIC_BACKDROP_PRESETS: BackdropPreset[] = [
 
 export const DEFAULT_BACKDROP: BackdropConfig = {
   padding: 64,
-  fill: BACKDROP_PRESETS[0].fill,
+  fill: { kind: 'gradient', from: '#1e293b', to: '#0ea5e9', angle: 135 },
   cornerRadius: 14,
   shadow: true,
   frame: 'browser',

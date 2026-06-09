@@ -6,14 +6,14 @@ import type { SnipprSettings } from '../store/editorStore';
 /** On launch, pull persisted settings and apply the saved beautify palette so the
  *  backdrop panel reflects the user's customizations (else the built-in seed). */
 export function useSettingsBootstrap() {
-  const setBrandPalette = useEditorStore((s) => s.setBrandPalette);
+  const setCustomPalette = useEditorStore((s) => s.setCustomPalette);
   useEffect(() => {
     invoke<SnipprSettings>('get_settings')
       .then((s) => {
-        if (Array.isArray(s.backdropPalette) && s.backdropPalette.length > 0) {
-          setBrandPalette(s.backdropPalette);
+        if (Array.isArray(s.backdropPalette)) {
+          setCustomPalette(s.backdropPalette);
         }
       })
-      .catch(() => { /* plain browser / no backend — keep the seed */ });
-  }, [setBrandPalette]);
+      .catch(() => { /* plain browser / no backend — keep the empty default */ });
+  }, [setCustomPalette]);
 }
