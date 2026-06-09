@@ -51,6 +51,11 @@ export const FRAME_BAR_HEIGHT: Record<FrameStyle, number> = {
   none: 0, macos: 28, windows: 32, browser: 36,
 };
 
+// Render a backdrop fill as a CSS background value (swatches, previews).
+export function fillToCss(f: BackdropFill): string {
+  return f.kind === 'solid' ? f.color : `linear-gradient(${f.angle}deg, ${f.from}, ${f.to})`;
+}
+
 export function fillsEqual(a: BackdropFill, b: BackdropFill): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === 'solid' && b.kind === 'solid') return a.color === b.color;

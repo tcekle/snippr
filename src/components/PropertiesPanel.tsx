@@ -3,12 +3,11 @@ import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
 import type { Annotation } from '../types/annotations';
 import {
-  BACKDROP_PRESETS,
   CLASSIC_BACKDROP_PRESETS,
   DEFAULT_BACKDROP,
+  fillToCss,
   fillsEqual,
   type AspectMode,
-  type BackdropFill,
   type BackdropPreset,
   type FrameStyle,
 } from '../types/backdrop';
@@ -376,19 +375,14 @@ function SpotlightControls() {
   );
 }
 
-// Render a backdrop fill as a CSS background value.
-function fillToCss(f: BackdropFill): string {
-  return f.kind === 'solid' ? f.color : `linear-gradient(${f.angle}deg, ${f.from}, ${f.to})`;
-}
-
 function BackdropControls() {
-  const { backdrop, activeTool, setBackdrop, removeBackdrop } = useEditorStore();
+  const { backdrop, activeTool, setBackdrop, removeBackdrop, brandPalette } = useEditorStore();
   const [customOpen, setCustomOpen] = useState(false);
   const [customColor, setCustomColor] = useState('#6b7280');
   if (activeTool !== 'backdrop') return null;
   const b = backdrop ?? DEFAULT_BACKDROP;
 
-  const allPresets = [...BACKDROP_PRESETS, ...CLASSIC_BACKDROP_PRESETS];
+  const allPresets = [...brandPalette, ...CLASSIC_BACKDROP_PRESETS];
   const customSelected = !allPresets.some((p) => fillsEqual(b.fill, p.fill)) && b.fill.kind === 'solid';
 
   const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 } as const;
@@ -409,7 +403,7 @@ function BackdropControls() {
     <>
       <div>
         <Label>Backdrop</Label>
-        <div style={gridStyle}>{BACKDROP_PRESETS.map((p, i) => swatch(p, `dio-${i}`))}</div>
+        <div style={gridStyle}>{brandPalette.map((p, i) => swatch(p, `dio-${i}`))}</div>
         <div style={captionStyle}>Data I/O brand palette</div>
 
         <div style={{ ...gridStyle, marginTop: 10 }}>{CLASSIC_BACKDROP_PRESETS.map((p, i) => swatch(p, `cl-${i}`))}</div>

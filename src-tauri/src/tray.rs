@@ -14,6 +14,15 @@ use crate::state::AppState;
 pub fn build(app: &tauri::App) -> tauri::Result<()> {
     let handle = app.handle();
 
+    // Disabled info row showing the running version (stamped from tauri.conf.json).
+    let version = MenuItem::with_id(
+        handle,
+        "version",
+        format!("snippr v{}", handle.package_info().version),
+        false,
+        None::<&str>,
+    )?;
+    let sep0 = PredefinedMenuItem::separator(handle)?;
     let open = MenuItem::with_id(handle, "open", "Open editor", true, None::<&str>)?;
     let open_file = MenuItem::with_id(handle, "open_file", "Open image…", true, None::<&str>)?;
     let annotate = MenuItem::with_id(handle, "annotate", "Annotate clipboard image", true, None::<&str>)?;
@@ -26,6 +35,8 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(handle, "quit", "Quit snippr", true, None::<&str>)?;
 
     let menu = Menu::with_items(handle, &[
+        &version,
+        &sep0,
         &open,
         &open_file,
         &annotate,
