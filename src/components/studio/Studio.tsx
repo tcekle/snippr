@@ -312,7 +312,13 @@ export function Studio({ path, active }: { path: string; active: boolean }) {
               src={src}
               muted
               preload="auto"
-              style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
+              style={{
+                display: 'block',
+                maxWidth: '100%', maxHeight: '100%',
+                borderRadius: 8,
+                background: '#000',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+              }}
               onLoadedMetadata={(e) => {
                 const d = e.currentTarget.duration;
                 if (Number.isFinite(d) && d > 0) {
@@ -326,7 +332,11 @@ export function Studio({ path, active }: { path: string; active: boolean }) {
               onClick={playPause}
             />
           ) : (
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 60 }}>
+            <div style={{
+              color: 'var(--color-text-muted)', fontSize: 13, padding: 60,
+              background: '#0d0d12', borderRadius: 8,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            }}>
               {loadError ?? 'Loading…'}
             </div>
           )}

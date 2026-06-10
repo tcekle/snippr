@@ -116,9 +116,10 @@ export function StudioShell({
           background: ST.bg,
         }}>
           <div style={{
-            flex: 1, minHeight: 0,
+            flex: 1, minHeight: 0, minWidth: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 18,
+            overflow: 'hidden',
           }}>
             {preview}
           </div>
@@ -161,32 +162,29 @@ export function StudioShell({
 // ── PreviewFrame ───────────────────────────────────────────────────────────
 
 export interface PreviewFrameProps {
-  /** A <video> element that sizes itself (e.g. max-width/height set by parent). */
+  /** A <video> that caps itself with maxWidth/maxHeight: 100% (and carries its
+   *  own rounded-corner / shadow chrome so the frame hugs the video edges). */
   children: React.ReactNode;
 }
 
 /**
- * Dark 16:9-ish player frame that centers its child with rounded corners and a
- * heavy drop shadow, matching the mock's PreviewPlayer. The child (a <video>)
- * is responsible for its own dimensions; this wrapper just provides the frame.
+ * Fills the preview slot with a definite-sized centering box. The child's
+ * percentage max-width/max-height resolve against THIS box — an auto-sized
+ * "hugging" wrapper makes percentage max-height resolve to none, so an
+ * oversized video would render at natural size and paint over the toolbar
+ * and transport rows.
  */
 export function PreviewFrame({ children }: PreviewFrameProps): React.JSX.Element {
   return (
     <div style={{
       position: 'relative',
-      borderRadius: 8,
-      overflow: 'hidden',
-      boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-      background: '#000',
+      width: '100%', height: '100%',
+      minWidth: 0, minHeight: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
     }}>
-      <div style={{
-        background: '#0d0d12',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        {children}
-      </div>
+      {children}
     </div>
   );
 }
