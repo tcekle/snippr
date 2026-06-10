@@ -560,14 +560,26 @@ function BackdropControls() {
         <Label>Window Frame</Label>
         <Segmented<FrameStyle>
           value={b.frame}
-          options={['none', 'macos', 'windows', 'browser']}
+          options={['none', 'macos', 'windows']}
           onChange={(v) => setBackdrop({ frame: v })}
         />
+        <div style={{ marginTop: 4 }}>
+          <Segmented<FrameStyle>
+            value={b.frame}
+            options={['browser', 'laptop', 'phone']}
+            onChange={(v) => setBackdrop({ frame: v })}
+          />
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ color: 'var(--color-text)', fontSize: 12.5 }}>Drop shadow</span>
         <Toggle on={b.shadow} onToggle={() => setBackdrop({ shadow: !b.shadow })} />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--color-text)', fontSize: 12.5 }}>Perspective tilt</span>
+        <Toggle on={b.tilt ?? false} onToggle={() => setBackdrop({ tilt: !(b.tilt ?? false) })} />
       </div>
 
       <div>

@@ -2,7 +2,9 @@ export type BackdropFill =
   | { kind: 'solid'; color: string }
   | { kind: 'gradient'; from: string; to: string; angle: number }; // degrees
 
-export type FrameStyle = 'none' | 'macos' | 'windows' | 'browser';
+/** Bar frames add window chrome above the image; device frames (laptop/phone)
+ *  wrap it in hardware bezels on all sides. */
+export type FrameStyle = 'none' | 'macos' | 'windows' | 'browser' | 'laptop' | 'phone';
 export type AspectMode = 'auto' | '1:1' | '16:9' | '4:3';
 
 export interface BackdropConfig {
@@ -12,6 +14,9 @@ export interface BackdropConfig {
   shadow: boolean;
   frame: FrameStyle;
   aspect: AspectMode;
+  /** Pseudo-3D lean (rotate + skew) on the device/image/annotations; the
+   *  backdrop panel stays upright. Optional so old scenes stay valid. */
+  tilt?: boolean;
 }
 
 export interface BackdropPreset { label: string; fill: BackdropFill; }
@@ -39,8 +44,11 @@ export const DEFAULT_BACKDROP: BackdropConfig = {
   aspect: '16:9',
 };
 
+/** Title-bar height for the bar-style frames. Device frames (laptop/phone)
+ *  have no bar — their chrome is expressed via frameInsets() in
+ *  backdropGeometry.ts, which wraps all four sides. */
 export const FRAME_BAR_HEIGHT: Record<FrameStyle, number> = {
-  none: 0, macos: 28, windows: 32, browser: 36,
+  none: 0, macos: 28, windows: 32, browser: 36, laptop: 0, phone: 0,
 };
 
 // Render a backdrop fill as a CSS background value (swatches, previews).

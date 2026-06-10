@@ -269,7 +269,8 @@
         },
         "cornerRadius": { "type": "number", "description": "image corner radius, px" },
         "shadow": { "type": "boolean" },
-        "frame": { "enum": ["none", "macos", "windows", "browser"], "description": "fake window chrome above the image" },
+        "frame": { "enum": ["none", "macos", "windows", "browser", "laptop", "phone"], "description": "window-chrome or device-frame style around the image: bar frames (macos/windows/browser) add chrome above; device frames (laptop/phone) wrap all four sides with hardware bezels" },
+        "tilt": { "type": "boolean", "description": "Pseudo-3D lean (rotate + skew) of the device/screenshot; the backdrop panel stays upright. Default false." },
         "aspect": { "enum": ["auto", "1:1", "16:9", "4:3"] }
       }
     }

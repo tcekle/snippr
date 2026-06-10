@@ -155,11 +155,15 @@ export async function maybeLoadDemo(): Promise<void> {
 
   // `?demo=1&backdrop=1` also turns the Beautify backdrop on (default config)
   // and selects the Backdrop tool so its panel section is visible.
-  // `&frame=none|macos|windows|browser` overrides the window-frame style.
+  // `&frame=none|macos|windows|browser|laptop|phone` overrides the frame style;
+  // `&tilt=1` adds the perspective lean (device mockup look).
   if (params.has('backdrop')) {
-    const frames = ['none', 'macos', 'windows', 'browser'];
+    const frames = ['none', 'macos', 'windows', 'browser', 'laptop', 'phone'];
     const f = params.get('frame');
-    s.setBackdrop(f && frames.includes(f) ? { frame: f as FrameStyle } : {});
+    s.setBackdrop({
+      ...(f && frames.includes(f) ? { frame: f as FrameStyle } : {}),
+      ...(params.has('tilt') ? { tilt: true } : {}),
+    });
     s.setTool('backdrop');
   }
 

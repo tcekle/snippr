@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Image as KonvaImage, Rect, Ellipse, Arrow, Line, Circle, Transformer } from 'react-konva';
+import { Stage, Layer, Group, Image as KonvaImage, Rect, Ellipse, Arrow, Line, Circle, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { nanoid } from 'nanoid';
@@ -19,8 +19,8 @@ import { PixelateShape } from './annotations/PixelateShape';
 import { LoupeShape } from './annotations/LoupeShape';
 import { SpotlightShape } from './annotations/SpotlightShape';
 import { ImageShape } from './annotations/ImageShape';
-import { Backdrop } from './Backdrop';
-import { backdropBounds } from '../utils/backdropGeometry';
+import { BackdropPanel, BackdropChrome } from './Backdrop';
+import { backdropBounds, imageCornerRadius, tiltLayerProps, xformPoint } from '../utils/backdropGeometry';
 import { buildPixelateCanvas } from '../utils/buildPixelateCanvas';
 import { TextEditOverlay } from './TextEditOverlay';
 
@@ -736,13 +736,31 @@ export function EditorCanvas() {
   const cropRot = cropRect?.rotation ?? 0;
   const cropCx = cropRect ? cropRect.x + cropRect.width / 2 : 0;
   const cropCy = cropRect ? cropRect.y + cropRect.height / 2 : 0;
-  const layerRotProps = {
-    rotation: cropRot,
-    offsetX: cropRot ? cropCx : 0,
-    offsetY: cropRot ? cropCy : 0,
-    x: cropRot ? cropCx : 0,
-    y: cropRot ? cropCy : 0,
-  };
+  // Backdrop tilt shares the layer-transform slot with the crop straighten —
+  // the store keeps backdrop and crop mutually exclusive, so at most one is
+  // ever live (crop wins if a hand-edited scene carries both). Both variants
+  // spell out every transform key so toggling either resets to identity.
+  const tilted = !!backdrop?.tilt && !cropRot;
+  const layerXformProps = tilted
+    ? tiltLayerProps(imgWidth, imgHeight)
+    : {
+        rotation: cropRot,
+        skewX: 0,
+        skewY: 0,
+        offsetX: cropRot ? cropCx : 0,
+        offsetY: cropRot ? cropCy : 0,
+        x: cropRot ? cropCx : 0,
+        y: cropRot ? cropCy : 0,
+      };
+  // The bg layer must NOT tilt as a whole — the backdrop panel stays upright
+  // beneath the leaning device — so it keeps only the crop rotation; the tilt
+  // is applied to an inner group around the device chrome + image instead.
+  const bgLayerProps = tilted
+    ? { rotation: 0, skewX: 0, skewY: 0, offsetX: 0, offsetY: 0, x: 0, y: 0 }
+    : layerXformProps;
+  const deviceGroupProps = tilted
+    ? layerXformProps
+    : { rotation: 0, skewX: 0, skewY: 0, offsetX: 0, offsetY: 0, x: 0, y: 0 };
   // A full-image, unrotated crop trims nothing — treat it as "no crop" for display.
   const cropTrivial = !!cropRect && !cropRot
     && cropRect.x <= 0 && cropRect.y <= 0
@@ -890,8 +908,10 @@ export function EditorCanvas() {
         style={{ cursor: getCursor() }}
       >
         {/* Layer 1: Backdrop (behind) + background image. Both are captured by
-            toDataURL on export. Rotated in place by the crop straighten. */}
-        <Layer listening={false} {...layerRotProps}>
+            toDataURL on export. Rotated in place by the crop straighten. The
+            panel stays upright; the device chrome + image lean together when
+            the backdrop tilt is on (inner group transform). */}
+        <Layer listening={false} {...bgLayerProps}>
           {/* Board page fill (a board has no image). 'transparent' draws nothing
               so the dark editor / dot grid shows through and export keeps alpha. */}
           {isBoard && boardBackground !== 'transparent' && (
@@ -905,29 +925,32 @@ export function EditorCanvas() {
             />
           )}
           {screenshot.imageEl && backdrop && (
-            <Backdrop b={backdrop} imgW={screenshot.width} imgH={screenshot.height} panelBounds={contentBounds ?? undefined} />
-          )}
-          {screenshot.imageEl && (
-            <KonvaImage
-              image={screenshot.imageEl}
-              x={0} y={0}
-              width={screenshot.width}
-              height={screenshot.height}
-              cornerRadius={
-                !backdrop ? 0
-                : backdrop.frame !== 'none'
-                  ? [0, 0, backdrop.cornerRadius, backdrop.cornerRadius] // bottom only (bar rounds the top)
-                  : backdrop.cornerRadius                                 // all four
-              }
-              listening={false}
+            <BackdropPanel
+              b={backdrop}
+              bounds={contentBounds ?? backdropBounds(screenshot.width, screenshot.height, backdrop)}
             />
           )}
+          <Group listening={false} {...deviceGroupProps}>
+            {screenshot.imageEl && backdrop && (
+              <BackdropChrome b={backdrop} imgW={screenshot.width} imgH={screenshot.height} />
+            )}
+            {screenshot.imageEl && (
+              <KonvaImage
+                image={screenshot.imageEl}
+                x={0} y={0}
+                width={screenshot.width}
+                height={screenshot.height}
+                cornerRadius={backdrop ? imageCornerRadius(backdrop, screenshot.width, screenshot.height) : 0}
+                listening={false}
+              />
+            )}
+          </Group>
         </Layer>
 
         {/* Layer 2: Annotations — only interactive with the select tool (or
             Ctrl held as a temporary move tool); otherwise strokes that start
             on top of a shape must draw, not drag it. */}
-        <Layer listening={activeTool === 'select' || ctrlDown} {...layerRotProps}>
+        <Layer listening={activeTool === 'select' || ctrlDown} {...layerXformProps}>
           {annotations.map(renderAnnotation)}
         </Layer>
 
@@ -935,7 +958,7 @@ export function EditorCanvas() {
             the content layers so previews track the cursor (coords are captured
             in the rotated space via getDrawPos). The crop draw-preview lives in
             the unrotated overlay layer instead — the crop frame is upright. */}
-        <Layer listening={false} {...layerRotProps}>
+        <Layer listening={false} {...layerXformProps}>
           {inProgress && activeTool !== 'crop' && (
             <>
               {(inProgress.type === 'rect' || inProgress.type === 'loupe' || inProgress.type === 'spotlight') && (
@@ -1037,12 +1060,11 @@ export function EditorCanvas() {
       {editingTextId && hasDoc && (() => {
         const textAnno = annotations.find((a) => a.id === editingTextId) as TextAnno | undefined;
         if (!textAnno) return null;
-        // Anno coords live in the (possibly rotated) annotation layer's space;
-        // the HTML textarea needs the stage-space point, so rotate it forward.
-        const rad = cropRot * Math.PI / 180;
-        const dx = textAnno.x - cropCx, dy = textAnno.y - cropCy;
-        const docPos = cropRot
-          ? { x: cropCx + dx * Math.cos(rad) - dy * Math.sin(rad), y: cropCy + dx * Math.sin(rad) + dy * Math.cos(rad) }
+        // Anno coords live in the (possibly transformed) annotation layer's
+        // space; the HTML textarea needs the stage-space point, so map it
+        // forward through the layer transform (crop straighten or tilt).
+        const docPos = (cropRot || tilted)
+          ? xformPoint({ x: textAnno.x, y: textAnno.y }, layerXformProps)
           : { x: textAnno.x, y: textAnno.y };
         return (
           <TextEditOverlay
