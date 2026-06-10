@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from './store/editorStore';
 import { useScreenshot } from './hooks/useScreenshot';
 import { useImageImport } from './hooks/useImageImport';
@@ -42,7 +43,10 @@ function App() {
   useEffect(() => {
     const unlistenSaved = listen<{ path: string; gif?: string | null }>('recording-saved', (event) => {
       const { path, gif } = event.payload;
-      showToast(gif ? `Recording saved: ${path} (+ GIF)` : `Recording saved: ${path}`);
+      // Offer the Studio editor via an action button; path goes to open_studio, not the toast text
+      showToast(gif ? 'Recording saved (+ GIF)' : 'Recording saved', {
+        action: { label: 'Edit', run: () => { invoke('open_studio', { path }).catch((e) => showToast(String(e), true)); } },
+      });
     });
     const unlistenError = listen<{ message: string }>('recording-error', (event) => {
       showToast(event.payload.message, true);

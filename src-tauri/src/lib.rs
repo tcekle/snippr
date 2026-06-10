@@ -13,6 +13,7 @@ mod scrolling_capture;
 mod settings;
 mod snip_filter;
 mod state;
+mod studio;
 mod tray;
 mod updater;
 
@@ -47,6 +48,7 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
+        .manage(commands::StudioState::default())
         .setup(|app| {
             tray::build(app)?;
             clipboard_watcher::spawn(app.handle().clone());
@@ -80,11 +82,20 @@ pub fn run() {
             screen_recording::start_recording,
             screen_recording::stop_recording,
             screen_recording::cancel_recording,
+            commands::open_studio,
+            commands::get_studio_job,
+            studio::probe_recording,
+            studio::trim_recording,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                // Close-to-tray applies to the MAIN editor only. Auxiliary
+                // windows (studio, overlays) must really close, or they'd pile
+                // up hidden — the studio one holding its mp4 open.
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .build(tauri::generate_context!())
