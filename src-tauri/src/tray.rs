@@ -24,7 +24,7 @@ pub fn build(app: &tauri::App) -> tauri::Result<()> {
     )?;
     let sep0 = PredefinedMenuItem::separator(handle)?;
     let open = MenuItem::with_id(handle, "open", "Open editor", true, None::<&str>)?;
-    let open_file = MenuItem::with_id(handle, "open_file", "Open image…", true, None::<&str>)?;
+    let open_file = MenuItem::with_id(handle, "open_file", "Open file…", true, None::<&str>)?;
     let annotate = MenuItem::with_id(handle, "annotate", "Annotate clipboard image", true, None::<&str>)?;
     let scroll = MenuItem::with_id(handle, "scroll", "Scrolling capture", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(handle, "pause", "Pause watching", true, false, None::<&str>)?;

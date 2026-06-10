@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from './store/editorStore';
 import { useScreenshot } from './hooks/useScreenshot';
 import { useImageImport } from './hooks/useImageImport';
@@ -9,7 +8,7 @@ import { useSettingsListener } from './hooks/useSettingsListener';
 import { usePaletteBootstrap } from './hooks/usePaletteBootstrap';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { copyAnnotated, saveAnnotatedAs, saveFlatAs } from './utils/exportPng';
-import { openImageFile } from './utils/openFile';
+import { openMediaFile, openVideoPath } from './utils/openFile';
 import { TopBar } from './components/TopBar';
 import { ToolRail } from './components/ToolRail';
 import { EditorCanvas } from './components/EditorCanvas';
@@ -18,10 +17,14 @@ import { LayersPanel } from './components/LayersPanel';
 import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
 import { TabsBar } from './components/TabsBar';
+import { Studio } from './components/studio/Studio';
 import { ToastContainer, showToast } from './components/Toast';
 
 function App() {
-  const { screenshot, setView, view } = useEditorStore();
+  const { screenshot, setView, view, tabs, activeTabId } = useEditorStore();
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const videoActive = activeTab?.kind === 'video';
+  const videoTabs = tabs.filter((t) => t.kind === 'video' && t.videoPath);
 
   useScreenshot();
   useWatcherState();
@@ -43,10 +46,10 @@ function App() {
   useEffect(() => {
     const unlistenSaved = listen<{ path: string; gif?: string | null }>('recording-saved', (event) => {
       const { path, gif } = event.payload;
-      // Offer the Studio editor via an action button; path goes to open_studio, not the toast text
-      showToast(gif ? 'Recording saved (+ GIF)' : 'Recording saved', {
-        action: { label: 'Edit', run: () => { invoke('open_studio', { path }).catch((e) => showToast(String(e), true)); } },
-      });
+      // The Rust side already surfaced this window; open the recording in an
+      // embedded Studio tab right away — same flow as a snip landing in a tab.
+      showToast(gif ? 'Recording saved (+ GIF)' : 'Recording saved');
+      void openVideoPath(path);
     });
     const unlistenError = listen<{ message: string }>('recording-error', (event) => {
       showToast(event.payload.message, true);
@@ -57,9 +60,9 @@ function App() {
     };
   }, []);
 
-  // Tray "Open image…" → run the file-open dialog in the WebView
+  // Tray "Open file…" → run the file-open dialog in the WebView
   useEffect(() => {
-    const unlisten = listen('open-file', () => { void openImageFile(); });
+    const unlisten = listen('open-file', () => { void openMediaFile(); });
     return () => { unlisten.then((fn) => fn()); };
   }, []);
 
@@ -120,22 +123,43 @@ function App() {
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' }}>
       <TopBar onCopy={handleCopy} onSave={handleSave} onSaveFlat={handleSaveFlat} />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <ToolRail />
+        {!videoActive && <ToolRail />}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <TabsBar />
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <EditorCanvas />
+          {/* Studio instances stay mounted while hidden so trim points and the
+              playhead survive tab switches; the canvas unmounts instead (its
+              state lives in the store, and Konva dislikes 0-size containers). */}
+          {videoTabs.map((t) => (
+            <div
+              key={t.id}
+              style={{
+                flex: 1, minHeight: 0, overflow: 'hidden',
+                display: t.id === activeTabId ? 'flex' : 'none',
+                flexDirection: 'column',
+              }}
+            >
+              <Studio path={t.videoPath!} active={t.id === activeTabId} />
+            </div>
+          ))}
+          {!videoActive && (
+            <>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <EditorCanvas />
+              </div>
+              <StatusBar onFit={handleFit} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
+            </>
+          )}
+        </div>
+        {!videoActive && (
+          <div style={{
+            width: 220, display: 'flex', flexDirection: 'column',
+            background: 'var(--color-elevated)', borderLeft: '1px solid var(--color-border)',
+            overflow: 'hidden',
+          }}>
+            <PropertiesPanel />
+            <LayersPanel />
           </div>
-          <StatusBar onFit={handleFit} onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} />
-        </div>
-        <div style={{
-          width: 220, display: 'flex', flexDirection: 'column',
-          background: 'var(--color-elevated)', borderLeft: '1px solid var(--color-border)',
-          overflow: 'hidden',
-        }}>
-          <PropertiesPanel />
-          <LayersPanel />
-        </div>
+        )}
       </div>
       {isDragging && (
         <div style={{
@@ -148,7 +172,7 @@ function App() {
             borderRadius: 8, padding: '10px 22px', fontSize: 14, fontWeight: 600,
             color: 'var(--color-text)',
           }}>
-            Drop image to open
+            Drop image or video to open
           </div>
         </div>
       )}

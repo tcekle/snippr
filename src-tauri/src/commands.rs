@@ -145,58 +145,20 @@ pub fn hide_window(window: tauri::WebviewWindow) {
 
 // ── snippr Studio (recording editor) ──────────────────────────────────────────
 
-/// The recording the Studio window is editing. Routed through managed state +
-/// `get_studio_job` (not a URL query) because query params on index.html don't
-/// survive the release asset protocol — same pattern as the CLI render window.
-#[derive(Default)]
-pub struct StudioState(pub std::sync::Mutex<Option<String>>);
-
+/// Authorize a recording for an embedded Studio tab. The <video> tag streams
+/// the mp4 via the asset: protocol; grant exactly this file at runtime rather
+/// than scoping the whole (user-configurable) save directory in tauri.conf.json.
 #[tauri::command]
-pub fn get_studio_job(state: tauri::State<'_, StudioState>) -> Option<String> {
-    state.0.lock().unwrap().clone() // not take(): reloads re-ask for it
-}
-
-/// Open the Studio editor window on a saved recording. MUST be async —
-/// window-creating commands deadlock on Windows otherwise (CLAUDE.md).
-#[tauri::command]
-pub async fn open_studio(app: AppHandle, path: String) -> Result<(), String> {
+pub fn open_video(app: AppHandle, path: String) -> Result<(), String> {
     use tauri::Manager;
 
     let file = std::path::PathBuf::from(&path);
     if !file.is_file() {
         return Err(format!("Recording not found: {path}"));
     }
-    // The <video> tag streams the mp4 via the asset: protocol; grant exactly
-    // this file at runtime rather than scoping the whole (user-configurable)
-    // save directory in tauri.conf.json.
     app.asset_protocol_scope()
         .allow_file(&file)
-        .map_err(|e| e.to_string())?;
-
-    *app.state::<StudioState>().0.lock().unwrap() = Some(path);
-
-    if let Some(win) = app.get_webview_window("studio") {
-        // Already open: re-point it by reloading the bundle (it re-asks
-        // get_studio_job on mount), then surface it.
-        let _ = win.eval("window.location.reload()");
-        let _ = win.unminimize();
-        let _ = win.show();
-        let _ = win.set_focus();
-        return Ok(());
-    }
-
-    tauri::webview::WebviewWindowBuilder::new(
-        &app,
-        "studio",
-        tauri::WebviewUrl::App("index.html".into()),
-    )
-    .title("snippr Studio")
-    .inner_size(1180.0, 760.0)
-    .min_inner_size(900.0, 600.0)
-    .center()
-    .build()
-    .map_err(|e| e.to_string())?;
-    Ok(())
+        .map_err(|e| e.to_string())
 }
 
 /// Read an image file (drag-and-drop), validating and normalizing to PNG.

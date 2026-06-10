@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import type { ToolType } from '../types/annotations';
-import { openImageFile } from '../utils/openFile';
+import { openMediaFile } from '../utils/openFile';
 
 export function useKeyboardShortcuts(
   onCopy: () => Promise<void>,
@@ -20,6 +20,41 @@ export function useKeyboardShortcuts(
 
     const ctrl = e.ctrlKey || e.metaKey;
 
+    // Tab management works regardless of the active tab's kind…
+    if (ctrl && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      useEditorStore.getState().newBoard();
+      return;
+    }
+    if (ctrl && e.key.toLowerCase() === 'o') {
+      e.preventDefault();
+      void openMediaFile();
+      return;
+    }
+    if (ctrl && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      const { activeTabId, closeTab } = useEditorStore.getState();
+      if (activeTabId) closeTab(activeTabId);
+      return;
+    }
+    if (ctrl && e.key === 'Tab') {
+      e.preventDefault();
+      const { tabs, activeTabId, switchTab } = useEditorStore.getState();
+      if (tabs.length < 2 || !activeTabId) return;
+      const idx = tabs.findIndex((t) => t.id === activeTabId);
+      const step = e.shiftKey ? -1 : 1;
+      const next = tabs[(idx + step + tabs.length) % tabs.length];
+      switchTab(next.id);
+      return;
+    }
+
+    // …but everything below acts on the image document, and the embedded
+    // Studio owns the keyboard (Space, I/O, arrows) while a video tab is up.
+    {
+      const { tabs, activeTabId } = useEditorStore.getState();
+      if (tabs.find((t) => t.id === activeTabId)?.kind === 'video') return;
+    }
+
     if (ctrl && e.key === 'z') { e.preventDefault(); undo(); return; }
     if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); return; }
     if (ctrl && e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); onSaveFlat(); return; }
@@ -37,32 +72,6 @@ export function useKeyboardShortcuts(
       e.preventDefault();
       const { view } = useEditorStore.getState();
       useEditorStore.getState().setView({ scale: Math.max(0.1, view.scale / 1.2) });
-      return;
-    }
-    if (ctrl && e.key.toLowerCase() === 'n') {
-      e.preventDefault();
-      useEditorStore.getState().newBoard();
-      return;
-    }
-    if (ctrl && e.key.toLowerCase() === 'o') {
-      e.preventDefault();
-      void openImageFile();
-      return;
-    }
-    if (ctrl && e.key.toLowerCase() === 'w') {
-      e.preventDefault();
-      const { activeTabId, closeTab } = useEditorStore.getState();
-      if (activeTabId) closeTab(activeTabId);
-      return;
-    }
-    if (ctrl && e.key === 'Tab') {
-      e.preventDefault();
-      const { tabs, activeTabId, switchTab } = useEditorStore.getState();
-      if (tabs.length < 2 || !activeTabId) return;
-      const idx = tabs.findIndex((t) => t.id === activeTabId);
-      const step = e.shiftKey ? -1 : 1;
-      const next = tabs[(idx + step + tabs.length) % tabs.length];
-      switchTab(next.id);
       return;
     }
 

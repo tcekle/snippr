@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
-import { ToastContainer, showToast } from '../Toast';
+import { showToast } from '../Toast';
 import {
   ST, StudioShell, PreviewFrame, TransportBar, TimeRuler, TrackLane,
   ClipView, PlayheadView, Field, NumChip,
@@ -25,12 +25,15 @@ function fmt(t: number): string {
 
 type Drag = { kind: 'seek' | 'in' | 'out' } | null;
 
-/** snippr Studio — the recording editor (window label `studio`). v1 scope:
- *  real playback + scrubbing of the saved mp4, trim in/out on the timeline,
- *  and a re-encoded trimmed export. Single Screen track: recordings are
- *  video-only, so the mock's webcam/mic lanes have nothing to show yet. */
-export function Studio() {
-  const [path, setPath] = useState<string | null>(null);
+/** snippr Studio — the recording editor, embedded as a video tab in the main
+ *  editor window. v1 scope: real playback + scrubbing of the saved mp4, trim
+ *  in/out on the timeline, and a re-encoded trimmed export. Single Screen
+ *  track: recordings are video-only, so the mock's webcam/mic lanes have
+ *  nothing to show yet.
+ *
+ *  Instances stay mounted (hidden) while their tab is inactive so the trim
+ *  points and playhead survive tab switches; `active` gates the keyboard. */
+export function Studio({ path, active }: { path: string; active: boolean }) {
   const [src, setSrc] = useState<string | null>(null);
   const [info, setInfo] = useState<RecordingInfo | null>(null);
   const [duration, setDuration] = useState(0);
@@ -50,27 +53,28 @@ export function Studio() {
 
   const thumbs = useFilmstrip(src, 8);
 
-  // The window is opened by `open_studio`, which parks the recording path in
-  // managed state — fetch it (label-routed; query params don't survive the
-  // release asset protocol).
+  // `open_video` already granted the asset protocol access to this path;
+  // convertFileSrc turns it into a streamable asset: URL.
   useEffect(() => {
-    // try/catch besides .catch(): outside Tauri (plain-browser preview)
-    // invoke THROWS synchronously instead of rejecting.
+    // try/catch: outside Tauri (plain-browser preview) the API internals are
+    // absent and these THROW synchronously instead of rejecting.
     try {
-      invoke<string | null>('get_studio_job')
-        .then((p) => {
-          if (!p) { setLoadError('No recording to edit'); return; }
-          setPath(p);
-          setSrc(convertFileSrc(p));
-          invoke<RecordingInfo>('probe_recording', { path: p })
-            .then(setInfo)
-            .catch(() => { /* inspector just omits w×h/fps */ });
-        })
-        .catch((e) => setLoadError(String(e)));
+      setSrc(convertFileSrc(path));
     } catch {
       setLoadError('No recording to edit (not running under Tauri)');
+      return;
     }
-  }, []);
+    try {
+      invoke<RecordingInfo>('probe_recording', { path })
+        .then(setInfo)
+        .catch(() => { /* inspector just omits w×h/fps */ });
+    } catch { /* plain browser */ }
+  }, [path]);
+
+  // Deactivated tab: freeze playback (the element stays mounted, just hidden).
+  useEffect(() => {
+    if (!active) videoRef.current?.pause();
+  }, [active]);
 
   // ── playback ──────────────────────────────────────────────────────────────
 
@@ -176,8 +180,11 @@ export function Studio() {
   // ── keyboard ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (!duration) return;
+      const tag = (e.target as HTMLElement).tagName?.toLowerCase();
+      if (tag === 'textarea' || tag === 'input') return;
       const step = e.shiftKey ? 5 : 1 / (info?.fps || 30);
       switch (e.key) {
         case ' ': e.preventDefault(); playPause(); break;
@@ -191,7 +198,7 @@ export function Studio() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [duration, current, trimIn, trimOut, info, playPause, seek]);
+  }, [active, duration, current, trimIn, trimOut, info, playPause, seek]);
 
   // ── export ────────────────────────────────────────────────────────────────
 
@@ -220,7 +227,7 @@ export function Studio() {
 
   // ── render ────────────────────────────────────────────────────────────────
 
-  const fileName = path ? path.split(/[\\/]/).pop() ?? path : 'Recording';
+  const fileName = path.split(/[\\/]/).pop() ?? path;
   const trimmed = duration > 0 && (trimIn > 0.05 || trimOut < duration - 0.05);
   const badge = info
     ? `${fmt(duration)} · ${info.width}×${info.height} · ${Math.round(info.fps)}fps`
@@ -294,52 +301,49 @@ export function Studio() {
   );
 
   return (
-    <>
-      <StudioShell
-        title={fileName}
-        recBadge={badge}
-        preview={
-          <PreviewFrame>
-            {src && !loadError ? (
-              <video
-                ref={videoRef}
-                src={src}
-                muted
-                preload="auto"
-                style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
-                onLoadedMetadata={(e) => {
-                  const d = e.currentTarget.duration;
-                  if (Number.isFinite(d) && d > 0) {
-                    setDuration(d);
-                    setTrimOut(d);
-                  }
-                }}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                onError={() => setLoadError('Could not load the recording')}
-                onClick={playPause}
-              />
-            ) : (
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 60 }}>
-                {loadError ?? 'Loading…'}
-              </div>
-            )}
-          </PreviewFrame>
-        }
-        transport={
-          <TransportBar
-            playing={playing}
-            tc={fmt(current)}
-            dur={fmt(duration)}
-            onPlayPause={playPause}
-            onSkipStart={() => seek(trimIn)}
-            onSkipEnd={() => seek(trimOut)}
-          />
-        }
-        inspector={inspector}
-        timeline={timeline}
-      />
-      <ToastContainer />
-    </>
+    <StudioShell
+      title={fileName}
+      recBadge={badge}
+      preview={
+        <PreviewFrame>
+          {src && !loadError ? (
+            <video
+              ref={videoRef}
+              src={src}
+              muted
+              preload="auto"
+              style={{ display: 'block', maxWidth: '100%', maxHeight: '100%' }}
+              onLoadedMetadata={(e) => {
+                const d = e.currentTarget.duration;
+                if (Number.isFinite(d) && d > 0) {
+                  setDuration(d);
+                  setTrimOut(d);
+                }
+              }}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onError={() => setLoadError('Could not load the recording')}
+              onClick={playPause}
+            />
+          ) : (
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 13, padding: 60 }}>
+              {loadError ?? 'Loading…'}
+            </div>
+          )}
+        </PreviewFrame>
+      }
+      transport={
+        <TransportBar
+          playing={playing}
+          tc={fmt(current)}
+          dur={fmt(duration)}
+          onPlayPause={playPause}
+          onSkipStart={() => seek(trimIn)}
+          onSkipEnd={() => seek(trimOut)}
+        />
+      }
+      inspector={inspector}
+      timeline={timeline}
+    />
   );
 }

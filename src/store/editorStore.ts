@@ -51,8 +51,13 @@ interface DocSnapshot {
 export interface TabInfo {
   id: string;
   label: string;
-  /** Parked document state; null for the active tab (its state lives in the flat fields). */
+  /** Image tabs hold a snip/board document; video tabs embed the Studio editor. */
+  kind: 'image' | 'video';
+  /** Parked document state; null for the active tab (its state lives in the flat
+   * fields). Video tabs never park a doc — Studio keeps its own state mounted. */
   doc: DocSnapshot | null;
+  /** Absolute path of the recording (kind === 'video' only). */
+  videoPath?: string;
 }
 
 const EMPTY_DOC = {
@@ -80,9 +85,13 @@ function snapshotActive(state: EditorState): DocSnapshot {
   };
 }
 
-/** Park the active tab's flat state back into its tab entry. */
+/** Park the active tab's flat state back into its tab entry. Video tabs hold
+ * no doc (the flat fields are just the empty placeholder while one is active),
+ * so leaving one parks nothing. */
 function parkActive(state: EditorState): TabInfo[] {
   if (!state.activeTabId) return state.tabs;
+  const active = state.tabs.find((t) => t.id === state.activeTabId);
+  if (active?.kind === 'video') return state.tabs;
   return state.tabs.map((t) =>
     t.id === state.activeTabId ? { ...t, doc: snapshotActive(state) } : t
   );
@@ -120,6 +129,8 @@ interface EditorState {
 interface EditorActions {
   /** New snip arrives: park the current tab (if any) and open a fresh one. */
   addTab: (url: string, w: number, h: number, imageEl: HTMLImageElement, originalBytes?: Uint8Array | null) => void;
+  /** Open a recording in an embedded Studio tab (or switch to it if already open). */
+  addVideoTab: (path: string) => void;
   /** Open a fresh blank board tab (no image; page size from opts or defaults). */
   newBoard: (opts?: { width?: number; height?: number; background?: string }) => void;
   setBoardBackground: (color: string) => void;
@@ -195,11 +206,30 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
       const tabs = parkActive(state);
       const id = nanoid();
       return {
-        tabs: [...tabs, { id, label: `Snip ${state.nextTabNum}`, doc: null }],
+        tabs: [...tabs, { id, label: `Snip ${state.nextTabNum}`, kind: 'image' as const, doc: null }],
         nextTabNum: state.nextTabNum + 1,
         activeTabId: id,
         ...EMPTY_DOC,
         screenshot: { url, width: w, height: h, imageEl, originalBytes: originalBytes ?? null },
+      };
+    });
+  },
+
+  addVideoTab: (path) => {
+    set((state) => {
+      // Re-opening the same file switches to its existing tab instead of duplicating.
+      const existing = state.tabs.find((t) => t.kind === 'video' && t.videoPath === path);
+      if (existing) {
+        if (existing.id === state.activeTabId) return {};
+        return { tabs: parkActive(state), activeTabId: existing.id, ...EMPTY_DOC };
+      }
+      const tabs = parkActive(state);
+      const id = nanoid();
+      const label = path.split(/[\\/]/).pop() ?? 'Recording';
+      return {
+        tabs: [...tabs, { id, label, kind: 'video' as const, videoPath: path, doc: null }],
+        activeTabId: id,
+        ...EMPTY_DOC,
       };
     });
   },
@@ -212,7 +242,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
       const height = opts?.height ?? DEFAULT_BOARD.height;
       const background = opts?.background ?? DEFAULT_BOARD.background;
       return {
-        tabs: [...tabs, { id, label: `Board ${state.nextTabNum}`, doc: null }],
+        tabs: [...tabs, { id, label: `Board ${state.nextTabNum}`, kind: 'image' as const, doc: null }],
         nextTabNum: state.nextTabNum + 1,
         activeTabId: id,
         ...EMPTY_DOC,
@@ -233,7 +263,13 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
     set((state) => {
       if (id === state.activeTabId) return {};
       const target = state.tabs.find((t) => t.id === id);
-      if (!target?.doc) return {};
+      if (!target) return {};
+      if (target.kind === 'video') {
+        // Studio stays mounted (hidden) per video tab; the flat doc fields just
+        // go to the empty placeholder while it's active.
+        return { tabs: parkActive(state), activeTabId: id, ...EMPTY_DOC };
+      }
+      if (!target.doc) return {};
       const doc = target.doc;
       const tabs = parkActive(state).map((t) => (t.id === id ? { ...t, doc: null } : t));
       return {
@@ -267,6 +303,9 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
 
       // Closing the active tab: activate the right neighbor, else left, else empty state
       const neighbor = tabs[idx] ?? tabs[idx - 1];
+      if (neighbor?.kind === 'video') {
+        return { tabs, activeTabId: neighbor.id, ...EMPTY_DOC };
+      }
       if (!neighbor?.doc) {
         return { tabs, activeTabId: null, ...EMPTY_DOC };
       }

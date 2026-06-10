@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { importImageBlob } from '../utils/loadImageTab';
+import { isVideoPath, openVideoPath } from '../utils/openFile';
 import { showToast } from '../components/Toast';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|bmp|webp)$/i;
@@ -67,21 +68,25 @@ export function useImageImport() {
           else if (p.type === 'leave') setIsDragging(false);
           else if (p.type === 'drop') {
             setIsDragging(false);
-            const paths = p.paths.filter((path) => IMAGE_EXT.test(path));
-            if (paths.length === 0) {
-              showToast('Drop an image file (png, jpg, gif, bmp, webp)', true);
+            const images = p.paths.filter((path) => IMAGE_EXT.test(path));
+            const videos = p.paths.filter(isVideoPath);
+            if (images.length === 0 && videos.length === 0) {
+              showToast('Drop an image (png, jpg, gif, bmp, webp) or video (mp4, mov, m4v)', true);
               return;
             }
-            // Sequential so the first file can become the background and the
-            // rest land as layers on top of it.
+            // Sequential so the first image can become the background and the
+            // rest land as layers on top of it. Videos each open a Studio tab.
             void (async () => {
-              for (const path of paths) {
+              for (const path of images) {
                 try {
                   const buf = await invoke<ArrayBuffer>('read_image_file', { path });
                   await importImageBlob(new Blob([buf], { type: 'image/png' }));
                 } catch (err) {
                   showToast(String(err), true);
                 }
+              }
+              for (const path of videos) {
+                await openVideoPath(path);
               }
             })();
           }

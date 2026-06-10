@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "overlay-*", "rec-toolbar", "rec-border", "cli-render", "studio"],
+  "windows": ["main", "overlay-*", "rec-toolbar", "rec-border", "cli-render"],
   "permissions": [
     "core:default",
     "opener:default",

@@ -5,7 +5,6 @@ import App from "./App";
 import { RegionSelector } from "./components/RegionSelector";
 import { RecToolbar } from "./components/RecToolbar";
 import { RecBorder } from "./components/RecBorder";
-import { Studio } from "./components/studio/Studio";
 import { CliRender } from "./cli/CliRender";
 import "./index.css";
 
@@ -30,20 +29,10 @@ const isCliRender =
     }
   })();
 
-function hasQuery(key: string): boolean {
-  try {
-    return new URLSearchParams(window.location.search).has(key);
-  } catch {
-    return false;
-  }
-}
-
 function rootFor(label: string) {
   if (isCliRender) return <CliRender />;
   if (label.startsWith("rec-toolbar")) return <RecToolbar />;
   if (label.startsWith("rec-border")) return <RecBorder />;
-  // ?studio=1 is a plain-browser/dev preview of the Studio shell (no Tauri).
-  if (label.startsWith("studio") || hasQuery("studio")) return <Studio />;
   if (label.startsWith("overlay")) return <RegionSelector />;
   return <App />;
 }

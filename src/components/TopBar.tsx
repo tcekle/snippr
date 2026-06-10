@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/editorStore';
-import { openImageFile } from '../utils/openFile';
+import { openMediaFile } from '../utils/openFile';
 
 interface Props {
   onCopy: () => Promise<void>;
@@ -171,8 +171,8 @@ export function TopBar({ onCopy, onSave, onSaveFlat }: Props) {
       )}
 
       <button
-        onClick={() => openImageFile()}
-        title="Open an image or editable snippr PNG (Ctrl+O)"
+        onClick={() => openMediaFile()}
+        title="Open an image, editable snippr PNG, or recording (Ctrl+O)"
         style={{
           background: 'transparent', color: 'var(--color-text)',
           border: '1px solid var(--color-border)',

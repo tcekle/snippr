@@ -33,6 +33,9 @@ export function TabsBar() {
             onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
             onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
           >
+            {tab.kind === 'video' && (
+              <span style={{ fontSize: 9, color: active ? 'var(--color-accent)' : 'inherit' }}>▶</span>
+            )}
             <span>{tab.label}</span>
             <button
               onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}

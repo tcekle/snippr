@@ -191,6 +191,12 @@ export async function maybeLoadDemo(): Promise<void> {
     s.requestFit();
   }
 
+  // `?demo=1&video=1` opens an embedded Studio tab on a fake path — outside
+  // Tauri the video can't load, but the tab routing + shell layout render.
+  if (params.has('video')) {
+    s.addVideoTab('C:\\demo\\snippr_recording.mp4');
+  }
+
   // `?demo=1&board=1` opens a blank whiteboard with a small diagram, where one note
   // spills past the right edge of the page — the white page auto-grows around it.
   if (params.has('board')) {
