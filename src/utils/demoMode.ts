@@ -167,6 +167,16 @@ export async function maybeLoadDemo(): Promise<void> {
     s.setTool('backdrop');
   }
 
+  // `?demo=1&crop=1` commits a center crop (composes with `&backdrop=1`);
+  // `&croprot=N` adds a straighten angle in degrees; `&croptool=1` re-enters
+  // the crop tool so the adjusting (uncommitted) state is visible.
+  if (params.has('crop')) {
+    const rot = Number(params.get('croprot') ?? 0);
+    s.setCropRect({ x: 140, y: 90, width: 760, height: 470, ...(rot ? { rotation: rot } : {}) });
+    if (params.has('croptool')) s.setTool('crop');
+    s.requestFit();
+  }
+
   // `?demo=1&zoom=1` drops a Magnifier loupe over a chart detail (circular lens,
   // white border + shadow, dashed source outline + connector) and selects the tool.
   if (params.has('zoom')) {

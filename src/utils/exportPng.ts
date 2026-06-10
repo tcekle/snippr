@@ -52,13 +52,26 @@ function renderAnnotatedPng(): Uint8Array {
   const base = img
     ? { width: img.naturalWidth, height: img.naturalHeight }
     : { width: store.screenshot.width, height: store.screenshot.height };
-  // Base box = the padded backdrop composition (if any) or the image/board page,
-  // then grown to wrap annotations that spill outside it — matching the editor.
-  // Explicit crop overrides everything. (A board never has a backdrop.)
-  const baseRect = backdrop && img
-    ? backdropBounds(img.naturalWidth, img.naturalHeight, backdrop)
-    : { x: 0, y: 0, width: base.width, height: base.height };
-  const rect = cropRect ? cropRect : computeExportBounds(stage, baseRect);
+  const full = { x: 0, y: 0, width: base.width, height: base.height };
+  // Crop and backdrop COMPOSE: the committed crop is the content rect the
+  // backdrop wraps (the live nodes clip the image/annotations to it). While
+  // the crop TOOL is still active the canvas renders the UNCOMMITTED view —
+  // chrome around the full image, nothing clipped — so export falls back to
+  // the bare crop region, the pre-compose behavior. A full-image unrotated
+  // crop trims nothing and is ignored. (A board never has a backdrop/crop.)
+  const trivialCrop = !!cropRect && !cropRect.rotation
+    && cropRect.x <= 0 && cropRect.y <= 0
+    && cropRect.width >= base.width && cropRect.height >= base.height;
+  const cropped = !!cropRect && !trivialCrop;
+  const committed = cropped && store.activeTool !== 'crop';
+  const content = committed && cropRect ? cropRect : full;
+  // Page box around the content; annotations grow it only when uncropped
+  // (a committed crop is a hard boundary — spill is clipped, not wrapped).
+  const baseRect = backdrop && img ? backdropBounds(content, backdrop) : content;
+  const rect =
+    committed ? (backdrop && img ? baseRect : cropRect!)
+    : cropped ? cropRect!
+    : computeExportBounds(stage, baseRect);
 
   // Background fill: a transparent board keeps alpha (no fill); any other board
   // fills with its color; a screenshot uses the existing canvas-gray backdrop so

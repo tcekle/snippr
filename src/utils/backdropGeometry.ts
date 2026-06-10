@@ -91,9 +91,10 @@ export const TILT_ROTATION_DEG = -4;
 export const TILT_SKEW_Y = -0.1;
 
 /** Always-full transform-prop object (react-konva only rewrites props that are
- *  present, so zeros must be explicit to reset). */
-export function tiltLayerProps(imgW: number, imgH: number): XformProps {
-  const cx = imgW / 2, cy = imgH / 2;
+ *  present, so zeros must be explicit to reset). Pivots on the CONTENT center —
+ *  the full image, or the committed crop rect when one is set. */
+export function tiltLayerProps(content: Bounds): XformProps {
+  const cx = content.x + content.width / 2, cy = content.y + content.height / 2;
   return {
     rotation: TILT_ROTATION_DEG,
     skewX: 0,
@@ -134,6 +135,34 @@ function transformAABB(r: Bounds, t: XformProps): Bounds {
   return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
 }
 
+// ── crop clip ────────────────────────────────────────────────────────────────
+
+type PathCtx = Pick<CanvasRenderingContext2D, 'beginPath' | 'moveTo' | 'lineTo' | 'arcTo' | 'closePath'>;
+
+/** Konva clipFunc tracing the committed crop rect, with optional per-corner
+ *  radii (number or [tl, tr, br, bl] — same shape Konva cornerRadius takes) so
+ *  a device frame's rounded screen carries through to the clipped content.
+ *  Shared by the live canvas groups and exportPng. */
+export function cropClipFunc(r: Bounds, radius: number | number[]) {
+  const [tl, tr, br, bl] = Array.isArray(radius) ? radius : [radius, radius, radius, radius];
+  const cap = Math.min(r.width, r.height) / 2;
+  const c = (v: number) => Math.max(0, Math.min(v ?? 0, cap));
+  return (ctx: PathCtx) => {
+    const { x, y, width: w, height: h } = r;
+    ctx.beginPath();
+    ctx.moveTo(x + c(tl), y);
+    ctx.lineTo(x + w - c(tr), y);
+    ctx.arcTo(x + w, y, x + w, y + c(tr), c(tr));
+    ctx.lineTo(x + w, y + h - c(br));
+    ctx.arcTo(x + w, y + h, x + w - c(br), y + h, c(br));
+    ctx.lineTo(x + c(bl), y + h);
+    ctx.arcTo(x, y + h, x, y + h - c(bl), c(bl));
+    ctx.lineTo(x, y + c(tl));
+    ctx.arcTo(x, y, x + c(tl), y, c(tl));
+    ctx.closePath();
+  };
+}
+
 // ── composition bounds ───────────────────────────────────────────────────────
 
 function aspectRatio(a: BackdropConfig['aspect']): number | null {
@@ -145,38 +174,44 @@ function aspectRatio(a: BackdropConfig['aspect']): number | null {
   }
 }
 
-/** Full composed-artwork rect in image space (content = the wrapped image/crop).
- *  Device box = content + frame insets, expanded to its tilted AABB when tilt
- *  is on, then padded and aspect-fitted. */
-export function backdropBounds(contentW: number, contentH: number, b: BackdropConfig): Bounds {
-  const ins = frameInsets(b.frame, contentW, contentH);
+/** Full composed-artwork rect in image space. `content` is the rect the frame
+ *  wraps — the whole image, or the committed crop rect when one is set (crop
+ *  and backdrop compose: crop trims first, backdrop wraps the result). Device
+ *  box = content + frame insets, expanded to its tilted AABB when tilt is on,
+ *  then padded and aspect-fitted. */
+export function backdropBounds(content: Bounds, b: BackdropConfig): Bounds {
+  const ins = frameInsets(b.frame, content.width, content.height);
   let box: Bounds = {
-    x: -ins.left,
-    y: -ins.top,
-    width: contentW + ins.left + ins.right,
-    height: contentH + ins.top + ins.bottom,
+    x: content.x - ins.left,
+    y: content.y - ins.top,
+    width: content.width + ins.left + ins.right,
+    height: content.height + ins.top + ins.bottom,
   };
-  if (b.tilt) box = transformAABB(box, tiltLayerProps(contentW, contentH));
+  if (b.tilt) box = transformAABB(box, tiltLayerProps(content));
 
-  let left = -box.x + b.padding;
-  let top = -box.y + b.padding;
-  let right = box.x + box.width - contentW + b.padding;
-  let bottom = box.y + box.height - contentH + b.padding;
+  let left = content.x - box.x + b.padding;
+  let top = content.y - box.y + b.padding;
+  let right = box.x + box.width - (content.x + content.width) + b.padding;
+  let bottom = box.y + box.height - (content.y + content.height) + b.padding;
 
   const target = aspectRatio(b.aspect);
   if (target) {
-    const w = contentW + left + right;
-    const h = contentH + top + bottom;
+    const w = content.width + left + right;
+    const h = content.height + top + bottom;
     const cur = w / h;
     if (cur < target) {            // too tall — pad sides
       const extra = (h * target - w) / 2;
       left += extra; right += extra;
     } else if (cur > target) {     // too wide — pad top/bottom
-      const extra = (w / target - h) / 2;
-      top += extra; bottom += extra;
+      top += (w / target - h) / 2; bottom += (w / target - h) / 2;
     }
   }
-  return { x: -left, y: -top, width: contentW + left + right, height: contentH + top + bottom };
+  return {
+    x: content.x - left,
+    y: content.y - top,
+    width: content.width + left + right,
+    height: content.height + top + bottom,
+  };
 }
 
 /** Konva linear-gradient props for a given fill across `bounds`. */

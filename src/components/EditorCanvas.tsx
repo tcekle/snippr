@@ -20,7 +20,7 @@ import { LoupeShape } from './annotations/LoupeShape';
 import { SpotlightShape } from './annotations/SpotlightShape';
 import { ImageShape } from './annotations/ImageShape';
 import { BackdropPanel, BackdropChrome } from './Backdrop';
-import { backdropBounds, imageCornerRadius, tiltLayerProps, xformPoint } from '../utils/backdropGeometry';
+import { backdropBounds, imageCornerRadius, tiltLayerProps, xformPoint, cropClipFunc } from '../utils/backdropGeometry';
 import { buildPixelateCanvas } from '../utils/buildPixelateCanvas';
 import { TextEditOverlay } from './TextEditOverlay';
 
@@ -158,6 +158,24 @@ export function EditorCanvas() {
   const isBoard = boardBackground !== null;
   const hasDoc = !!screenshot.imageEl || isBoard;
 
+  // ── Crop/backdrop composition state ───────────────────────────────────────
+  // Crop and backdrop COMPOSE: the committed crop defines the content rect the
+  // backdrop wraps. While the crop TOOL is active the composition shows the
+  // uncommitted view (frame around the full image, nothing clipped) so the
+  // chrome doesn't chase the drag; leaving the tool commits it.
+  const cropRot = cropRect?.rotation ?? 0;
+  const cropCx = cropRect ? cropRect.x + cropRect.width / 2 : 0;
+  const cropCy = cropRect ? cropRect.y + cropRect.height / 2 : 0;
+  // A full-image, unrotated crop trims nothing — treat it as "no crop" for display.
+  const cropTrivial = !!cropRect && !cropRot
+    && cropRect.x <= 0 && cropRect.y <= 0
+    && cropRect.width >= screenshot.width && cropRect.height >= screenshot.height;
+  const cropApplied = !!cropRect && activeTool !== 'crop' && !cropTrivial;
+  // What the backdrop frame wraps + the tilt pivot: committed crop or whole image.
+  const contentRect = cropApplied && cropRect
+    ? { x: cropRect.x, y: cropRect.y, width: cropRect.width, height: cropRect.height }
+    : { x: 0, y: 0, width: screenshot.width, height: screenshot.height };
+
   // Register stage ref
   useEffect(() => {
     if (stageRef.current) setStageRef(stageRef.current);
@@ -177,12 +195,13 @@ export function EditorCanvas() {
     return () => ro.disconnect();
   }, []);
 
-  // The base box is the screenshot/board page, or the padded backdrop composition.
+  // The base box is the content rect (image/board page, or the committed crop)
+  // or the padded backdrop composition around it.
   const baseBounds = useCallback(
-    () => backdrop
-      ? backdropBounds(screenshot.width, screenshot.height, backdrop)
-      : { x: 0, y: 0, width: screenshot.width, height: screenshot.height },
-    [backdrop, screenshot.width, screenshot.height]
+    () => backdrop ? backdropBounds(contentRect, backdrop) : contentRect,
+    // contentRect is rebuilt each render; depend on its parts to keep this stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [backdrop, contentRect.x, contentRect.y, contentRect.width, contentRect.height]
   );
 
   // Base box grown to wrap any committed annotations (layer 1) that spill outside
@@ -191,6 +210,9 @@ export function EditorCanvas() {
   // Returns the base unchanged when everything is inside.
   const measureContentBounds = useCallback(() => {
     const base = baseBounds();
+    // A committed crop is a hard boundary: annotations outside it are clipped
+    // away, so they must not grow the page (getClientRect can't see the clip).
+    if (cropApplied) return base;
     const stage = stageRef.current;
     if (!stage) return base;
     const annoLayer = stage.getLayers()[1];
@@ -201,7 +223,7 @@ export function EditorCanvas() {
     const maxX = Math.ceil(Math.max(base.x + base.width, a.x + a.width));
     const maxY = Math.ceil(Math.max(base.y + base.height, a.y + a.height));
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-  }, [baseBounds]);
+  }, [baseBounds, cropApplied]);
 
   // Track the grown bounds as annotations change — used to grow the board page fill.
   useEffect(() => {
@@ -221,7 +243,9 @@ export function EditorCanvas() {
     const trivial = !!cr && !cr.rotation && cr.x <= 0 && cr.y <= 0
       && cr.width >= st.screenshot.width && cr.height >= st.screenshot.height;
     const cropView = !!cr && st.activeTool !== 'crop' && !trivial;
-    const bounds = cropView ? { x: cr!.x, y: cr!.y, width: cr!.width, height: cr!.height } : measureContentBounds();
+    // measureContentBounds already frames the committed crop (or the backdrop
+    // composition around it); cropView only picks the zoom-to-fill cap.
+    const bounds = measureContentBounds();
     // A committed crop zooms to fill the viewport (cap at max zoom); normal docs
     // never upscale past 100%.
     const scale = Math.min(
@@ -265,15 +289,17 @@ export function EditorCanvas() {
     return stageRef.current?.getRelativePointerPosition() ?? { x: 0, y: 0 };
   }, []);
 
-  // Pointer position in the ANNOTATIONS layer's space. Identical to stage space
-  // until a crop straighten rotates the content layers — then it inverse-rotates,
-  // so a shape drawn on the tilted image lands exactly under the cursor once it
-  // renders through the layer rotation. The crop frame itself stays in stage
-  // space (it's upright by design), so crop interactions use getPointerPos.
+  // Pointer position in the annotations' DRAW SPACE — the innermost group of
+  // the annotations layer (named 'draw-space'), beneath the tilt, crop-clip and
+  // straighten groups — so its inverse transform maps the cursor into the same
+  // space committed annotations render in, and shapes land under the cursor.
+  // The crop frame itself stays in stage space (it's upright by design), so
+  // crop interactions use getPointerPos.
   const getDrawPos = useCallback(() => {
     const stage = stageRef.current;
     const layer = stage?.getLayers()[1];
-    return layer?.getRelativePointerPosition()
+    const drawSpace = layer?.findOne('.draw-space') ?? layer;
+    return drawSpace?.getRelativePointerPosition()
       ?? stage?.getRelativePointerPosition()
       ?? { x: 0, y: 0 };
   }, []);
@@ -724,65 +750,30 @@ export function EditorCanvas() {
     }
   }, [selectedId, activeTool, editingTextId, screenshot.imageEl, screenshot.width, screenshot.height, setSelectedId, setEditingTextId, updateAnnotation]);
 
-  const imgWidth = screenshot.width;
-  const imgHeight = screenshot.height;
-
-  // Crop straighten rotates the image (and annotations) on the content layers,
-  // pivoting on the crop center. Applied whenever a rotation is set — both the
-  // crop-tool preview and the committed view — so the editor matches the export
-  // (which captures the rotated content verbatim). Always a full object so the
-  // transform resets to identity when rotation is cleared (react-konva only
-  // rewrites props that are present).
-  const cropRot = cropRect?.rotation ?? 0;
-  const cropCx = cropRect ? cropRect.x + cropRect.width / 2 : 0;
-  const cropCy = cropRect ? cropRect.y + cropRect.height / 2 : 0;
-  // Backdrop tilt shares the layer-transform slot with the crop straighten —
-  // the store keeps backdrop and crop mutually exclusive, so at most one is
-  // ever live (crop wins if a hand-edited scene carries both). Both variants
-  // spell out every transform key so toggling either resets to identity.
-  const tilted = !!backdrop?.tilt && !cropRot;
-  const layerXformProps = tilted
-    ? tiltLayerProps(imgWidth, imgHeight)
-    : {
-        rotation: cropRot,
-        skewX: 0,
-        skewY: 0,
-        offsetX: cropRot ? cropCx : 0,
-        offsetY: cropRot ? cropCy : 0,
-        x: cropRot ? cropCx : 0,
-        y: cropRot ? cropCy : 0,
-      };
-  // The bg layer must NOT tilt as a whole — the backdrop panel stays upright
-  // beneath the leaning device — so it keeps only the crop rotation; the tilt
-  // is applied to an inner group around the device chrome + image instead.
-  const bgLayerProps = tilted
-    ? { rotation: 0, skewX: 0, skewY: 0, offsetX: 0, offsetY: 0, x: 0, y: 0 }
-    : layerXformProps;
-  const deviceGroupProps = tilted
-    ? layerXformProps
-    : { rotation: 0, skewX: 0, skewY: 0, offsetX: 0, offsetY: 0, x: 0, y: 0 };
-  // A full-image, unrotated crop trims nothing — treat it as "no crop" for display.
-  const cropTrivial = !!cropRect && !cropRot
-    && cropRect.x <= 0 && cropRect.y <= 0
-    && cropRect.width >= imgWidth && cropRect.height >= imgHeight;
-  // Once committed (any tool but crop), show the cropped result Photoshop-style:
-  // an opaque matte (canvas color) covers everything outside the crop rect, and
-  // the fit effect frames the crop. Done with document-space rects — which honor
-  // the stage zoom/pan — NOT a Konva layer clip, whose region ignores the stage
-  // transform (clip + scaled content miss each other → blank canvas).
-  const cropApplied = !!cropRect && activeTool !== 'crop' && !cropTrivial;
-  const cropMatte = cropApplied && cropRect ? (() => {
-    const { x, y, width: w, height: h } = cropRect;
-    const BIG = 100000;
-    return (
-      <>
-        <Rect x={x - BIG} y={y - BIG} width={w + 2 * BIG} height={BIG} fill="#181818" listening={false} />
-        <Rect x={x - BIG} y={y + h} width={w + 2 * BIG} height={BIG} fill="#181818" listening={false} />
-        <Rect x={x - BIG} y={y} width={BIG} height={h} fill="#181818" listening={false} />
-        <Rect x={x + w} y={y} width={BIG} height={h} fill="#181818" listening={false} />
-      </>
-    );
-  })() : null;
+  // ── Content-layer transform stack ──────────────────────────────────────────
+  // Every content layer nests:  tilt ▸ crop-clip ▸ straighten ▸ nodes.
+  // The crop clips in pre-tilt space (crop the screenshot, THEN lean the
+  // device) and the straighten rotates the image beneath the upright crop
+  // frame inside the clip. Transforms live on GROUPS, not layers, so the
+  // backdrop panel can stay upright in the same bg layer. Each props object
+  // spells out every transform key so toggling resets to identity (react-konva
+  // only rewrites props that are present).
+  //
+  // The committed crop is a real Konva GROUP clip — unlike a LAYER clip, a
+  // group's clip honors the stage zoom/pan, so the matte hack is gone. It uses
+  // clipFunc (not clipX/Y/W/H) so a backdrop frame can round the screen
+  // corners; the same path builder is shared with exportPng.
+  const IDENTITY_XFORM = { rotation: 0, skewX: 0, skewY: 0, offsetX: 0, offsetY: 0, x: 0, y: 0 };
+  // Tilt is suppressed while the crop tool is active: the crop frame lives in
+  // document space and must map 1:1 onto image pixels while adjusting.
+  const tilted = !!backdrop?.tilt && activeTool !== 'crop' && !!screenshot.imageEl;
+  const tiltProps = tilted ? tiltLayerProps(contentRect) : IDENTITY_XFORM;
+  const rotProps = cropRot
+    ? { rotation: cropRot, skewX: 0, skewY: 0, offsetX: cropCx, offsetY: cropCy, x: cropCx, y: cropCy }
+    : IDENTITY_XFORM;
+  const clipFunc = cropApplied && cropRect
+    ? cropClipFunc(cropRect, backdrop ? imageCornerRadius(backdrop, cropRect.width, cropRect.height) : 0)
+    : undefined;
 
   // Interactive crop overlay: dim outside + rule-of-thirds + frame + 8 resize
   // handles + a rotate knob. Every node is visual only (listening=false) — the
@@ -908,10 +899,10 @@ export function EditorCanvas() {
         style={{ cursor: getCursor() }}
       >
         {/* Layer 1: Backdrop (behind) + background image. Both are captured by
-            toDataURL on export. Rotated in place by the crop straighten. The
-            panel stays upright; the device chrome + image lean together when
-            the backdrop tilt is on (inner group transform). */}
-        <Layer listening={false} {...bgLayerProps}>
+            toDataURL on export. The panel stays upright; the device chrome +
+            crop-clipped image lean together inside the tilt group, and the
+            straighten rotates the image inside the clip. */}
+        <Layer listening={false}>
           {/* Board page fill (a board has no image). 'transparent' draws nothing
               so the dark editor / dot grid shows through and export keeps alpha. */}
           {isBoard && boardBackground !== 'transparent' && (
@@ -927,38 +918,55 @@ export function EditorCanvas() {
           {screenshot.imageEl && backdrop && (
             <BackdropPanel
               b={backdrop}
-              bounds={contentBounds ?? backdropBounds(screenshot.width, screenshot.height, backdrop)}
+              bounds={contentBounds ?? backdropBounds(contentRect, backdrop)}
             />
           )}
-          <Group listening={false} {...deviceGroupProps}>
+          <Group listening={false} {...tiltProps}>
             {screenshot.imageEl && backdrop && (
-              <BackdropChrome b={backdrop} imgW={screenshot.width} imgH={screenshot.height} />
+              <BackdropChrome b={backdrop} content={contentRect} />
             )}
-            {screenshot.imageEl && (
-              <KonvaImage
-                image={screenshot.imageEl}
-                x={0} y={0}
-                width={screenshot.width}
-                height={screenshot.height}
-                cornerRadius={backdrop ? imageCornerRadius(backdrop, screenshot.width, screenshot.height) : 0}
-                listening={false}
-              />
-            )}
+            <Group listening={false} name="crop-clip" clipFunc={clipFunc}>
+              <Group listening={false} {...rotProps}>
+                {screenshot.imageEl && (
+                  <KonvaImage
+                    image={screenshot.imageEl}
+                    x={0} y={0}
+                    width={screenshot.width}
+                    height={screenshot.height}
+                    cornerRadius={
+                      backdrop && !cropApplied
+                        ? imageCornerRadius(backdrop, screenshot.width, screenshot.height)
+                        : 0 // a committed crop rounds at the clip path instead
+                    }
+                    listening={false}
+                  />
+                )}
+              </Group>
+            </Group>
           </Group>
         </Layer>
 
         {/* Layer 2: Annotations — only interactive with the select tool (or
             Ctrl held as a temporary move tool); otherwise strokes that start
             on top of a shape must draw, not drag it. */}
-        <Layer listening={activeTool === 'select' || ctrlDown} {...layerXformProps}>
-          {annotations.map(renderAnnotation)}
+        <Layer listening={activeTool === 'select' || ctrlDown}>
+          <Group {...tiltProps}>
+            <Group name="crop-clip" clipFunc={clipFunc}>
+              <Group name="draw-space" {...rotProps}>
+                {annotations.map(renderAnnotation)}
+              </Group>
+            </Group>
+          </Group>
         </Layer>
 
         {/* Layer 3: In-progress drawing. Carries the same straighten rotation as
             the content layers so previews track the cursor (coords are captured
             in the rotated space via getDrawPos). The crop draw-preview lives in
             the unrotated overlay layer instead — the crop frame is upright. */}
-        <Layer listening={false} {...layerXformProps}>
+        <Layer listening={false}>
+          <Group {...tiltProps}>
+          <Group clipFunc={clipFunc}>
+          <Group {...rotProps}>
           {inProgress && activeTool !== 'crop' && (
             <>
               {(inProgress.type === 'rect' || inProgress.type === 'loupe' || inProgress.type === 'spotlight') && (
@@ -1023,6 +1031,9 @@ export function EditorCanvas() {
               )}
             </>
           )}
+          </Group>
+          </Group>
+          </Group>
         </Layer>
 
         {/* Layer 4: Overlay (crop + transformer) */}
@@ -1038,7 +1049,6 @@ export function EditorCanvas() {
               listening={false}
             />
           )}
-          {cropMatte}
           {cropUI}
           {cropInProgressPreview}
           <Transformer
@@ -1060,12 +1070,10 @@ export function EditorCanvas() {
       {editingTextId && hasDoc && (() => {
         const textAnno = annotations.find((a) => a.id === editingTextId) as TextAnno | undefined;
         if (!textAnno) return null;
-        // Anno coords live in the (possibly transformed) annotation layer's
-        // space; the HTML textarea needs the stage-space point, so map it
-        // forward through the layer transform (crop straighten or tilt).
-        const docPos = (cropRot || tilted)
-          ? xformPoint({ x: textAnno.x, y: textAnno.y }, layerXformProps)
-          : { x: textAnno.x, y: textAnno.y };
+        // Anno coords live in the draw-space group; the HTML textarea needs the
+        // stage-space point, so map forward through the transform stack in
+        // render order: straighten first, then tilt (identity props are no-ops).
+        const docPos = xformPoint(xformPoint({ x: textAnno.x, y: textAnno.y }, rotProps), tiltProps);
         return (
           <TextEditOverlay
             anno={textAnno}

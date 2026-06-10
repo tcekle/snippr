@@ -363,16 +363,16 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
 
   setTool: (tool) => {
     set((state) => {
-      // Backdrop & crop are mutually exclusive — entering one clears the other.
+      // Crop and backdrop COMPOSE: the committed crop defines the content rect
+      // and the backdrop wraps that. Entering either tool keeps the other's
+      // state (crop → beautify is the device-mockup hero-shot workflow).
       let cropRect = state.cropRect;
       let backdrop = state.backdrop;
       if (tool === 'backdrop') {
-        cropRect = null;
         if (!backdrop) backdrop = DEFAULT_BACKDROP;
       } else if (tool === 'crop' && !cropRect && state.screenshot.imageEl) {
         // Lightroom-style: entering crop shows a full-image frame to adjust, not a blank draw.
         cropRect = { x: 0, y: 0, width: state.screenshot.width, height: state.screenshot.height };
-        backdrop = null;
       }
       return { activeTool: tool, selectedId: null, editingTextId: null, backdrop, cropRect };
     });
@@ -383,7 +383,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   },
 
   setCropRect: (rect) => {
-    set((state) => ({ cropRect: rect, backdrop: rect ? null : state.backdrop }));
+    set({ cropRect: rect });
   },
 
   setCropAspect: (ratio) => {
@@ -394,10 +394,11 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
     set((state) => {
       const base = state.backdrop ?? DEFAULT_BACKDROP;
       const histSnap = pushHistory ? pushHistoryEntry(state) : {};
+      // Crop survives: the committed crop is the content rect the backdrop
+      // wraps (they compose; the old v1 mutual exclusion lived here).
       return {
         ...histSnap,
         backdrop: { ...base, ...partial },
-        cropRect: null, // backdrop & crop are mutually exclusive in v1
       };
     });
   },
