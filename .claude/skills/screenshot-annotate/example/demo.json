@@ -1,0 +1,67 @@
+{
+  "_what": "The end-to-end demo. `node scripts/annotate.mjs example/demo.json` turns example/sample-app.png into out/demo.png. Nothing below is specific to any project: copy it, repoint `source` and `output`, and change the labels.",
+  "_readTheSelectors": "No coordinate appears anywhere in this file. Every target is a description that survives the screenshot being retaken at a different window size. Run `node scripts/measure.mjs example/sample-app.png` first to see the vocabulary these descriptions are drawn from — that is the workflow, not an optional extra.",
+  "_keysAreIgnored": "Every key starting with `_` is ignored by the tool. Recording why you chose something, as you go, is how the reasoning survives; a spec that carries only values teaches the next person nothing. The `_rejected` key near the bottom is the most important one in this file.",
+  "source": "sample-app.png",
+  "output": "../out/demo.png",
+  "style": "marker-rings",
+  "crop": "none",
+  "_crop": "The whole window, because this figure's job is to show controls in the context of the app around them. A detail figure crops instead: set `crop: \"auto\"` and name the containing card in `cropInclude`, or cropping to the targets alone amputates the container and the figure reads as a floating fragment. Cropping is also worth roughly 2.7x the on-page size of the same pixels — see DOCTRINE.md.",
+  "backdrop": "aubergine",
+  "_backdrop": "All three labels live in synthesized margin OUTSIDE the app window, so the gradient says that margin is not part of the product. That is the whole test — not whether the figure is whole-window, and not whether it looks empty. Drop the backdrop and the same labels land on the app's own near-white ground, where the dark-backdrop palette measures about 1.8:1 and fails. Read the backdrop doctrine in DOCTRINE.md before adding or removing one.",
+  "callouts": [
+    {
+      "number": 1,
+      "label": "Re-polls every device; it does not restart them",
+      "side": "top",
+      "margin": true,
+      "target": {
+        "swatch": {
+          "fill": "#CBD5E1",
+          "minWidth": 20,
+          "maxWidth": 120
+        }
+      },
+      "_earnsIt": "An unlabelled glyph. The picture shows a wordless circular arrow and a reader cannot get its meaning from the pixels — the clearest case for a callout there is. The label also states the SCOPE, which is the half that matters: the danger with a refresh control is that someone reads it as 'reset'.",
+      "_target": "minWidth guards against the 1px #CBD5E1 divider rules, which are the same colour as the button. maxWidth is belt and braces. A filter that only just happens to be unambiguous today is the kind that stops being right silently."
+    },
+    {
+      "number": 2,
+      "label": "Saves the address; the device is not contacted yet",
+      "side": "right",
+      "margin": true,
+      "target": {
+        "swatch": {
+          "fill": "#2563EB"
+        }
+      },
+      "_earnsIt": "The button already says '+ Add device', so a callout reading 'Add a device' would say nothing. What the picture cannot say is what adding actually DOES, and the consequence that follows: nothing on the wire happens yet, so a wrong address here fails later rather than now."
+    },
+    {
+      "label": "A faulted device keeps its slot and takes no work",
+      "side": "left",
+      "margin": true,
+      "target": {
+        "swatch": {
+          "fill": "#FEE2E2",
+          "within": {
+            "swatch": {
+              "fill": "#FFFFFF",
+              "minWidth": 900,
+              "order": "area-desc",
+              "index": 0
+            }
+          }
+        }
+      },
+      "_earnsIt": "The chip already reads 'Fault' and is already red, so naming the state repeats the picture. The CONSEQUENCE does not: the row stays in the list and keeps its position, which is why the operator sees a device that looks present and is not working.",
+      "_unnumbered": "Deliberately has no number, and this is the rule worth copying. Callouts 1 and 2 are steps in a short procedure; this one explains a state the reader will encounter. Giving it a '3' would invent a third step the surrounding prose does not have, and put the figure out of step with the page it illustrates. Mixing numbered steps with unnumbered explanations in one figure is normal and correct.",
+      "_within": "`within` is not strictly needed — #FEE2E2 is unique in this image — but it is here to show composition, and because it is the habit that survives the app growing a second red chip somewhere else."
+    }
+  ],
+  "_rejected": "FIVE callouts were considered and cut. Recording them is not paperwork: without this list the next person re-proposes one, and the argument gets had twice. (1) The device names and the Name column — the header already names them; a ring would read the caption back. (2) The two green 'Ready' chips — the chip says Ready and nothing follows from it the reader needs; annotating the normal state also dilutes the one abnormal state that matters. (3) 'operator' in the title bar — a name in the top-right corner already means 'who is signed in'. (4) The highlighted 'Devices' nav row — the highlight is a universal convention and the row is labelled, so there is nothing non-obvious to say. (5) The Cycles column, and this one was cut for a DIFFERENT reason worth knowing: 'a dash means never run, not zero' is a genuinely honest callout, and it was dropped because it cannot be targeted. That cell has no uniform fill and no detected rule bounding it, so the only way to point at it is a literal `rect`, which forfeits the guarantee that the figure survives a re-capture. 'Can I describe this without a coordinate?' is part of choosing a callout, not a step that comes afterwards.",
+  "_targets": "Each target is named by a fill that appears nowhere else in the capture, so no index is needed and nothing shifts if the table gains a row. Contrast that with matching the Fault chip on its position — 'the third row' — which breaks the moment the list is sorted differently. That difference, a description versus a coordinate, is the entire reason the selector layer exists.",
+  "_ink": "None of the three targets needed the `ink` selector, because all three are filled controls. Reach for `ink` when the thing you are pointing at is a glyph drawn ON a control — an eye toggle inside a password field, a chevron on a row — which a swatch detector cannot see at all. See SKILL.md, Target selectors.",
+  "_margin": "`margin: true` forces a label out into the figure's gutter instead of letting it sit on open ground inside the frame. It is what makes the backdrop palette correct for all three labels at once. The three sit in three different gutters, which is also the cheapest way to keep three leaders from crossing each other.",
+  "_fontScale": "Not set here, because the default lands in the right band for a 1400px capture. Label type is sized off the CAPTURE width, not the crop, so a small detail clip needs `fontScale` above 1 and a crop of a 2880px capture needs it well below. Target 15-18 CSS px against 16px body copy."
+}

@@ -1,0 +1,22 @@
+node_modules/
+out/
+test/diff/
+test/font-path.png
+
+# The figure working set. Whether you ignore these is a real decision, not a default —
+# see the note at the top of test/golden.test.mjs and the last section of DOCTRINE.md.
+#
+# Ignoring them (the PSV choice): only the published PNG is committed, the golden suite
+# only protects a tree that already has the sources locally, and re-deriving a figure is a
+# RE-SHOOT rather than a re-render. That is survivable only if every figure has a prose
+# page recording how to get back to it.
+#
+# Committing them: figures become re-renderable by anyone, the goldens work on a fresh
+# clone, and you pay the repo size of every raw capture. If you have the room, do this.
+#
+# Uncomment to ignore:
+# figures/sources/
+# figures/*.json
+
+# The demo's golden IS committed, so `npm test` verifies a fresh install end to end.
+# test/golden/
