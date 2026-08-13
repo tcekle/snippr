@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* Hand-lettered faces for sketch annotations. Bundled rather than fetched: the
+   app must render identically offline, and a CDN face would silently change
+   exported PNGs. SIL OFL 1.1 — licence at src/assets/fonts/OFL.txt. */
+@font-face {
+  font-family: 'Kalam';
+  src: url('./assets/fonts/Kalam-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Patrick Hand';
+  src: url('./assets/fonts/PatrickHand-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Architects Daughter';
+  src: url('./assets/fonts/ArchitectsDaughter-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 :root {
   --color-surface: #202020;
   --color-elevated: #2c2c2c;

@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid';
 import { useEditorStore } from '../store/editorStore';
 import type { Annotation, RectAnno, ShapeAnno, ShapeKind, EllipseAnno, ArrowAnno, LineAnno, PenAnno, HighlightAnno, TextAnno, BadgeAnno, PixelateAnno, ImageAnno, LoupeAnno, SpotlightAnno, CropRect } from '../types/annotations';
 import { shapePoints, isShapeTool } from '../utils/shapeGeometry';
+import { whenHandFontsReady } from '../utils/handFonts';
 import { RectShape } from './annotations/RectShape';
 import { PolyShape } from './annotations/PolyShape';
 import { EllipseShape } from './annotations/EllipseShape';
@@ -148,10 +149,22 @@ export function EditorCanvas() {
   const store = useEditorStore();
   const {
     screenshot, boardBackground, annotations, selectedId, activeTool, strokeColor, strokeWidth, fontSize,
+    sketchMode, sketchRoughness, textFont,
     editingTextId, view, cropRect, backdrop, fitNonce,
     addAnnotation, updateAnnotation, setSelectedId, setEditingTextId,
     setView, setCropRect, setStageRef, newBoard,
   } = store;
+
+  /** Sketch fields stamped onto a newly drawn shape. The seed is drawn once and
+   *  stored, so the shape wobbles identically forever after — including in the
+   *  exported PNG. A fresh seed per annotation stops two rings drawn back to
+   *  back from being visibly the same squiggle. */
+  const newSketch = useCallback(
+    () => (sketchMode
+      ? { sketch: true, seed: Math.floor(Math.random() * 100000), roughness: sketchRoughness }
+      : {}),
+    [sketchMode, sketchRoughness],
+  );
 
   // A board is a doc with a background but no image; treat it as a real document
   // everywhere the canvas used to require screenshot.imageEl.
@@ -181,6 +194,18 @@ export function EditorCanvas() {
     if (stageRef.current) setStageRef(stageRef.current);
     return () => setStageRef(null);
   }, [setStageRef]);
+
+  // Canvas text is rasterised with whatever face is resolved at draw time, and
+  // nothing invalidates it when a webfont arrives later — a hand-lettered label
+  // drawn during that window stays in the fallback until something else forces
+  // a redraw. Force one when the faces land.
+  useEffect(() => {
+    let cancelled = false;
+    whenHandFontsReady().then(() => {
+      if (!cancelled) stageRef.current?.batchDraw();
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // ResizeObserver
   useEffect(() => {
@@ -353,6 +378,7 @@ export function EditorCanvas() {
         number: next,
         fill: strokeColor,
         radius: 16,
+        ...newSketch(),
       };
       addAnnotation(anno);
       setSelectedId(anno.id);
@@ -404,7 +430,7 @@ export function EditorCanvas() {
     } else if (activeTool === 'pen' || activeTool === 'highlight') {
       setInProgress({ type: activeTool, points: [pos.x, pos.y] });
     }
-  }, [activeTool, view, strokeColor, fontSize, addAnnotation, setSelectedId, setEditingTextId, getPointerPos, getDrawPos]);
+  }, [activeTool, view, strokeColor, fontSize, newSketch, addAnnotation, setSelectedId, setEditingTextId, getPointerPos, getDrawPos]);
 
   const handlePointerMove = useCallback((e: KonvaEventObject<PointerEvent>) => {
     if (isPanning.current) {
@@ -489,6 +515,7 @@ export function EditorCanvas() {
         text: '',
         fontSize,
         fill: strokeColor,
+        fontFamily: textFont,
       } satisfies TextAnno);
       setEditingTextId(id);
       return;
@@ -511,6 +538,7 @@ export function EditorCanvas() {
         x: inProgress.x, y: inProgress.y,
         width: inProgress.width, height: inProgress.height,
         stroke: strokeColor, strokeWidth,
+        ...newSketch(),
       } satisfies RectAnno;
     } else if (inProgress.type === 'shape' && inProgress.width > 2 && inProgress.height > 2) {
       committed = {
@@ -518,6 +546,7 @@ export function EditorCanvas() {
         x: inProgress.x, y: inProgress.y,
         width: inProgress.width, height: inProgress.height,
         stroke: strokeColor, strokeWidth,
+        ...newSketch(),
       } satisfies ShapeAnno;
     } else if (activeTool === 'ellipse' && inProgress.type === 'ellipse' && inProgress.radiusX > 1) {
       committed = {
@@ -525,18 +554,21 @@ export function EditorCanvas() {
         x: inProgress.x, y: inProgress.y,
         radiusX: inProgress.radiusX, radiusY: inProgress.radiusY,
         stroke: strokeColor, strokeWidth,
+        ...newSketch(),
       } satisfies EllipseAnno;
     } else if (activeTool === 'arrow' && inProgress.type === 'arrow') {
       committed = {
         id: nanoid(), type: 'arrow',
         points: inProgress.points,
         stroke: strokeColor, strokeWidth,
+        ...newSketch(),
       } satisfies ArrowAnno;
     } else if (activeTool === 'line' && inProgress.type === 'line') {
       committed = {
         id: nanoid(), type: 'line',
         points: inProgress.points,
         stroke: strokeColor, strokeWidth,
+        ...newSketch(),
       } satisfies LineAnno;
     } else if (activeTool === 'pen' && inProgress.type === 'pen' && inProgress.points.length > 2) {
       committed = {
@@ -588,7 +620,7 @@ export function EditorCanvas() {
       setSelectedId(committed.id);
     }
     setInProgress(null);
-  }, [activeTool, inProgress, strokeColor, strokeWidth, fontSize, addAnnotation, setCropRect, setSelectedId, setEditingTextId, getPointerPos, getDrawPos]);
+  }, [activeTool, inProgress, strokeColor, strokeWidth, fontSize, textFont, newSketch, addAnnotation, setCropRect, setSelectedId, setEditingTextId, getPointerPos, getDrawPos]);
 
   const handleWheel = useCallback((e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();

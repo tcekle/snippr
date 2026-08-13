@@ -20,6 +20,7 @@ export function TextShape({ anno, editing, onSelect, onEdit, onChange }: Props) 
       y={anno.y}
       text={anno.text}
       fontSize={anno.fontSize}
+      fontFamily={anno.fontFamily}
       fill={anno.fill}
       draggable
       onClick={onSelect}

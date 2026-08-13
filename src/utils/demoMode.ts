@@ -140,18 +140,30 @@ export async function maybeLoadDemo(): Promise<void> {
   await loadCanvasAsTab(drawDemoWindow(1200, 700));
 
   const s = useEditorStore.getState();
-  const red = '#ff3b30';
-  s.addAnnotation({ id: nanoid(), type: 'rect', x: 990, y: 96, width: 174, height: 60, stroke: red, strokeWidth: 4 });
-  s.addAnnotation({ id: nanoid(), type: 'arrow', points: [800, 250, 968, 140], stroke: red, strokeWidth: 4 });
-  s.addAnnotation({ id: nanoid(), type: 'text', x: 660, y: 264, text: 'Export lives here', fontSize: 26, fill: red });
-  s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 140, number: 1, fill: red, radius: 16 });
-  s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 176, number: 2, fill: red, radius: 16 });
-  s.addAnnotation({ id: nanoid(), type: 'highlight', points: [282, 196, 660, 196], stroke: '#ffe600', strokeWidth: 4 });
-  s.addAnnotation({ id: nanoid(), type: 'shape', shape: 'star', x: 664, y: 160, width: 60, height: 60, stroke: '#ffcc00', strokeWidth: 4 });
-  s.addAnnotation({ id: nanoid(), type: 'pixelate', x: 278, y: 412, width: 330, height: 28, pixelSize: 10 });
-  s.setSelectedId(null);
-
   const params = new URLSearchParams(location.search);
+  const red = '#ff3b30';
+
+  if (params.has('sketch')) {
+    // `?demo=1&sketch=1` — the hand-drawn set: a marker ring on the target, a
+    // sweeping leader instead of a straight arrow, and a hand-lettered label.
+    const amber = '#ce7a1a';
+    s.addAnnotation({ id: nanoid(), type: 'ellipse', x: 1077, y: 126, radiusX: 105, radiusY: 42, stroke: amber, strokeWidth: 4, sketch: true, seed: 21 });
+    s.addAnnotation({ id: nanoid(), type: 'arrow', points: [720, 268, 962, 150], stroke: amber, strokeWidth: 4, sketch: true, seed: 8, curve: 0.24 });
+    s.addAnnotation({ id: nanoid(), type: 'text', x: 300, y: 250, text: 'Writes a PDF; it does not email it', fontSize: 30, fill: amber, fontFamily: 'Kalam' });
+    s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 140, number: 1, fill: amber, radius: 18, sketch: true, seed: 44 });
+    s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 176, number: 2, fill: amber, radius: 18, sketch: true, seed: 91 });
+    s.addAnnotation({ id: nanoid(), type: 'rect', x: 278, y: 404, width: 336, height: 40, stroke: amber, strokeWidth: 3, sketch: true, seed: 63 });
+  } else {
+    s.addAnnotation({ id: nanoid(), type: 'rect', x: 990, y: 96, width: 174, height: 60, stroke: red, strokeWidth: 4 });
+    s.addAnnotation({ id: nanoid(), type: 'arrow', points: [800, 250, 968, 140], stroke: red, strokeWidth: 4 });
+    s.addAnnotation({ id: nanoid(), type: 'text', x: 660, y: 264, text: 'Export lives here', fontSize: 26, fill: red });
+    s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 140, number: 1, fill: red, radius: 16 });
+    s.addAnnotation({ id: nanoid(), type: 'badge', x: 110, y: 176, number: 2, fill: red, radius: 16 });
+    s.addAnnotation({ id: nanoid(), type: 'highlight', points: [282, 196, 660, 196], stroke: '#ffe600', strokeWidth: 4 });
+    s.addAnnotation({ id: nanoid(), type: 'shape', shape: 'star', x: 664, y: 160, width: 60, height: 60, stroke: '#ffcc00', strokeWidth: 4 });
+    s.addAnnotation({ id: nanoid(), type: 'pixelate', x: 278, y: 412, width: 330, height: 28, pixelSize: 10 });
+  }
+  s.setSelectedId(null);
 
   // `?demo=1&backdrop=1` also turns the Beautify backdrop on (default config)
   // and selects the Backdrop tool so its panel section is visible.

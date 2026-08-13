@@ -5,6 +5,7 @@ import type { Annotation, ToolType, CropRect } from '../types/annotations';
 import type { BackdropConfig, Palette } from '../types/backdrop';
 import { DEFAULT_BACKDROP } from '../types/backdrop';
 import { DEFAULT_BOARD } from '../types/board';
+import { DEFAULT_ROUGHNESS } from '../utils/roughPath';
 
 export interface SnipprSettings {
   saveDirectory: string;
@@ -112,6 +113,14 @@ interface EditorState {
   strokeColor: string;
   strokeWidth: number;
   fontSize: number;
+  /** Draw new shapes hand-drawn. A tool default like strokeColor — it seeds the
+   *  annotation at creation and is never read again, so toggling it later does
+   *  not restyle what is already on the canvas. */
+  sketchMode: boolean;
+  /** Rough.js roughness applied to new sketched shapes. */
+  sketchRoughness: number;
+  /** Font for new text annotations; undefined = the canvas default sans. */
+  textFont: string | undefined;
   editingTextId: string | null;
   view: ViewState;
   paused: boolean;
@@ -156,6 +165,9 @@ interface EditorActions {
   setStrokeColor: (color: string) => void;
   setStrokeWidth: (width: number) => void;
   setFontSize: (size: number) => void;
+  setSketchMode: (on: boolean) => void;
+  setSketchRoughness: (r: number) => void;
+  setTextFont: (font: string | undefined) => void;
   setStageRef: (ref: Konva.Stage | null) => void;
   pushHistory: () => void;
   requestFit: () => void;
@@ -190,6 +202,9 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
   strokeColor: '#ff3b30',
   strokeWidth: 4,
   fontSize: 24,
+  sketchMode: false,
+  sketchRoughness: DEFAULT_ROUGHNESS,
+  textFont: undefined,
   editingTextId: null,
   view: { scale: 1, x: 0, y: 0 },
   paused: false,
@@ -476,6 +491,18 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
 
   setFontSize: (size) => {
     set({ fontSize: size });
+  },
+
+  setSketchMode: (on) => {
+    set({ sketchMode: on });
+  },
+
+  setSketchRoughness: (r) => {
+    set({ sketchRoughness: r });
+  },
+
+  setTextFont: (font) => {
+    set({ textFont: font });
   },
 
   setStageRef: (ref) => {

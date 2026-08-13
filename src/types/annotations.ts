@@ -8,15 +8,26 @@ export type ShapeKind = 'triangle'|'diamond'|'star';
 export type ToolType = 'select'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'highlight'|'text'|'badge'|'pixelate'|'crop'|'backdrop'|'loupe'|'spotlight'|ShapeKind;
 
 type Base = { id: string; };
-export type RectAnno      = Base & { type:'rect'; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
-export type ShapeAnno     = Base & { type:'shape'; shape:ShapeKind; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
-export type EllipseAnno   = Base & { type:'ellipse'; x:number; y:number; radiusX:number; radiusY:number; stroke:string; strokeWidth:number };
-export type ArrowAnno     = Base & { type:'arrow'; points:number[]; stroke:string; strokeWidth:number };
-export type LineAnno      = Base & { type:'line'; points:number[]; stroke:string; strokeWidth:number };
+
+/** Hand-drawn rendering, opt-in per annotation. `seed` is stored rather than
+ *  derived at render so the wobble is identical across reloads and in the
+ *  exported PNG; omitted on documents saved before sketch existed, where the
+ *  renderer falls back to hashing the id. */
+export type Sketchable = { sketch?:boolean; seed?:number; roughness?:number };
+
+/** Signed bow as a fraction of the chord, so the arc holds its proportion when
+ *  the arrow is resized. 0 = straight. Independent of `sketch`. */
+export type Bowable = { curve?:number };
+
+export type RectAnno      = Base & Sketchable & { type:'rect'; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
+export type ShapeAnno     = Base & Sketchable & { type:'shape'; shape:ShapeKind; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
+export type EllipseAnno   = Base & Sketchable & { type:'ellipse'; x:number; y:number; radiusX:number; radiusY:number; stroke:string; strokeWidth:number };
+export type ArrowAnno     = Base & Sketchable & Bowable & { type:'arrow'; points:number[]; stroke:string; strokeWidth:number };
+export type LineAnno      = Base & Sketchable & Bowable & { type:'line'; points:number[]; stroke:string; strokeWidth:number };
 export type PenAnno       = Base & { type:'pen'; points:number[]; stroke:string; strokeWidth:number };
 export type HighlightAnno = Base & { type:'highlight'; points:number[]; stroke:string; strokeWidth:number };
-export type TextAnno      = Base & { type:'text'; x:number; y:number; text:string; fontSize:number; fill:string };
-export type BadgeAnno     = Base & { type:'badge'; x:number; y:number; number:number; fill:string; radius:number };
+export type TextAnno      = Base & { type:'text'; x:number; y:number; text:string; fontSize:number; fill:string; fontFamily?:string };
+export type BadgeAnno     = Base & Sketchable & { type:'badge'; x:number; y:number; number:number; fill:string; radius:number };
 export type PixelateAnno  = Base & { type:'pixelate'; x:number; y:number; width:number; height:number; pixelSize:number };
 export type ImageAnno     = Base & { type:'image'; x:number; y:number; width:number; height:number; imageEl:HTMLImageElement; src:string };
 export type LoupeAnno     = Base & {

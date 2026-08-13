@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { useEditorStore } from '../store/editorStore';
-import type { Annotation, CropRect } from '../types/annotations';
+import type { Annotation, CropRect, ToolType } from '../types/annotations';
+import { DEFAULT_ROUGHNESS } from '../utils/roughPath';
+import { HAND_FONTS } from '../utils/handFonts';
 import {
   CLASSIC_BACKDROP_PRESETS,
   DEFAULT_BACKDROP,
@@ -143,6 +145,9 @@ export function PropertiesPanel() {
         </div>
       )}
 
+      <SketchControls />
+      <CurveControl />
+      <TextFontControl />
       <BoardControls />
       <PixelSizeControl />
       <BadgeNumberControl />
@@ -260,6 +265,147 @@ function BadgeNumberControl() {
         />
         <StepButton label="+" onClick={() => setNumber(selected.number + 1)} />
       </div>
+    </div>
+  );
+}
+
+/** Shapes that can be drawn by hand. Pen and highlight are excluded: they are
+ *  already freehand, so roughening them adds nothing but noise. */
+const SKETCHABLE_TOOLS: ToolType[] = ['rect', 'ellipse', 'arrow', 'line', 'badge', 'triangle', 'diamond', 'star'];
+const SKETCHABLE_TYPES = ['rect', 'shape', 'ellipse', 'arrow', 'line', 'badge'];
+
+/** Hand-drawn toggle. Edits the selected annotation when there is one, and
+ *  otherwise sets the default for the next shape drawn — the same way the
+ *  colour and stroke-width controls above behave. */
+function SketchControls() {
+  const {
+    selectedId, annotations, activeTool, updateAnnotation,
+    sketchMode, sketchRoughness, setSketchMode, setSketchRoughness,
+  } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  const target = selected && SKETCHABLE_TYPES.includes(selected.type) ? selected : null;
+
+  if (!target && !SKETCHABLE_TOOLS.includes(activeTool)) return null;
+
+  const on = target ? ((target as { sketch?: boolean }).sketch ?? false) : sketchMode;
+  const roughness = target
+    ? ((target as { roughness?: number }).roughness ?? DEFAULT_ROUGHNESS)
+    : sketchRoughness;
+
+  const toggle = () => {
+    if (target) {
+      // Stamp a seed on the way in so the wobble is recorded on the annotation
+      // rather than derived, which is what lets "New wobble" reroll it.
+      updateAnnotation(target.id, {
+        sketch: !on,
+        ...(!on ? { seed: Math.floor(Math.random() * 100000), roughness } : {}),
+      } as Partial<Annotation>, true);
+    } else {
+      setSketchMode(!on);
+    }
+  };
+
+  const setRoughness = (v: number, commit: boolean) => {
+    if (target) updateAnnotation(target.id, { roughness: v } as Partial<Annotation>, commit);
+    else setSketchRoughness(v);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <ToggleRow label="Hand-drawn" on={on} onToggle={toggle} />
+      {on && (
+        <>
+          <div>
+            <Label>Roughness</Label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="range" min={0} max={3} step={0.1} value={roughness}
+                onChange={(e) => setRoughness(Number(e.target.value), false)}
+                onPointerUp={(e) => setRoughness(Number((e.target as HTMLInputElement).value), true)}
+                style={{ flex: 1, accentColor: 'var(--color-accent)' }}
+              />
+              <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 24 }}>{roughness.toFixed(1)}</span>
+            </div>
+          </div>
+          {target && (
+            <button
+              onClick={() => updateAnnotation(target.id, { seed: Math.floor(Math.random() * 100000) } as Partial<Annotation>, true)}
+              style={{
+                background: 'var(--color-surface)', color: 'var(--color-text)',
+                border: '1px solid var(--color-border)', borderRadius: 4,
+                padding: '5px 8px', fontSize: 12, cursor: 'pointer', outline: 'none',
+              }}
+            >
+              New wobble
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Bow on an arrow or line. A leader that sweeps reads as drawn on top of the
+ *  UI; a straight one landing on a control reads as part of it. */
+function CurveControl() {
+  const { selectedId, annotations, updateAnnotation } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  if (selected?.type !== 'arrow' && selected?.type !== 'line') return null;
+  const curve = selected.curve ?? 0;
+
+  const set = (v: number, commit: boolean) => {
+    updateAnnotation(selected.id, { curve: v } as Partial<Annotation>, commit);
+  };
+
+  return (
+    <div>
+      <Label>Curve</Label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range" min={-0.6} max={0.6} step={0.02} value={curve}
+          onChange={(e) => set(Number(e.target.value), false)}
+          onPointerUp={(e) => set(Number((e.target as HTMLInputElement).value), true)}
+          style={{ flex: 1, accentColor: 'var(--color-accent)' }}
+        />
+        <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 30 }}>{curve.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Face for label text. The hand faces pair with the hand-drawn shapes; the
+ *  default keeps the UI sans for captions that should not look annotated. */
+function TextFontControl() {
+  const { selectedId, annotations, activeTool, updateAnnotation, textFont, setTextFont } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  const target = selected?.type === 'text' ? selected : null;
+  if (!target && activeTool !== 'text') return null;
+
+  const current = target ? (target.fontFamily ?? '') : (textFont ?? '');
+  const set = (font: string) => {
+    const value = font || undefined;
+    if (target) updateAnnotation(target.id, { fontFamily: value } as Partial<Annotation>, true);
+    else setTextFont(value);
+  };
+
+  return (
+    <div>
+      <Label>Font</Label>
+      <select
+        value={current}
+        onChange={(e) => set(e.target.value)}
+        style={{
+          width: '100%',
+          background: 'var(--color-surface)', color: 'var(--color-text)',
+          border: '1px solid var(--color-border)', borderRadius: 4,
+          padding: '5px 6px', fontSize: 12.5, outline: 'none',
+        }}
+      >
+        <option value="">Default (sans)</option>
+        {HAND_FONTS.map((f) => (
+          <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+        ))}
+      </select>
     </div>
   );
 }
