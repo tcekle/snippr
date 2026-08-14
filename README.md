@@ -23,6 +23,7 @@ Ordinary copied images don't trigger the editor — snippr checks that the clipb
 ## Features
 
 - **Annotation tools** — line, rectangle, ellipse, triangle, diamond, star, arrow, freehand pen, highlighter, text, auto-numbered step badges (numbers editable in the properties panel)
+- **Hand-drawn style** — render any outline shape as a loose, marker-style stroke instead of clean vector; curved arrow leaders, adjustable arrowhead size and hand-lettered label fonts (see below)
 - **Photoshop-style tool flyout** — hold or right-click the shape button to pick its variants; the button remembers your last choice (the corner caret marks grouped tools)
 - **Color presets** — the usual palette one click away; the last swatch unfolds the full picker with a hex input
 - **Beautify backdrop** — wrap a screenshot in padding, a gradient/solid background, rounded corners, a drop shadow and a macOS/browser window frame; non-destructive, baked only on export (see below)
@@ -55,6 +56,16 @@ Each row renders a miniature of the actual shape — its real geometry and color
 </td>
 </tr>
 </table>
+
+## Hand-drawn annotations
+
+Every outline shape — rectangle, ellipse, the polygon set, arrow, line and step badges — can be drawn as a loose marker stroke instead of clean vector. Flip **Hand-drawn** in the properties panel and the shape re-renders sketched; **Roughness** controls how loose, and **New wobble** rerolls the randomness when a particular squiggle bothers you.
+
+![hand-drawn annotations](docs/sketch.png)
+
+Arrows gain two extras that matter for callouts: a **Curve**, so a leader sweeps to its target rather than poking at it, and a **Head Size** multiplier for when the arrowhead looks shy against a heavy stroke. Text can be set in one of three hand-lettered faces — Kalam, Patrick Hand, Architects Daughter — bundled with the app rather than fetched, so exports render identically offline.
+
+The wobble is seeded per annotation and stored alongside it, so a shape looks the same every time the document is reopened and in the exported PNG. Toggling the style never changes a shape's color — it is a rendering switch only, so it is safe to flip on annotations you have already placed.
 
 ## Beautify
 
@@ -151,4 +162,6 @@ The installer is unsigned — SmartScreen will warn on first run (`More info →
 
 ### README screenshots
 
-The screenshots above are generated from the web build: `npm run dev`, then open `http://localhost:1420/?demo=1` (dev-only demo mode that loads a synthetic screenshot plus sample annotations). Add `&backdrop=1` to show the Beautify backdrop (used for `docs/beautify.png`).
+The screenshots above are generated from the web build: `npm run dev`, then open `http://localhost:1420/?demo=1` (dev-only demo mode that loads a synthetic screenshot plus sample annotations). Add `&backdrop=1` to show the Beautify backdrop (`docs/beautify.png`), or `&sketch=1` for the hand-drawn set (`docs/sketch.png`).
+
+They are then beautified by snippr itself — a backdrop-only scene through the production CLI, written back over the same file, so the images in this README are dogfood.

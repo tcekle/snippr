@@ -51,12 +51,17 @@ npm run tauri build                                    # NSIS installer
 
 The committed docs screenshots are then **beautified by snippr itself** (dogfood). After regenerating the raw PNGs above, re-run the beautify pass — a backdrop-only scene (`{"annotations":[],"backdrop":{…}}`) through the production CLI, writing back over the same file:
 
+The scene is passed on **stdin** (`--scene -`), so there is no scene file to keep in sync — these exact values are the recipe, and they reproduce the committed images 1:1:
+
 ```powershell
 $exe = "src-tauri\target\release\snippr.exe"   # must be a `tauri build`, not cargo --release
-& $exe generate --input docs\editor.png --scene macos.json --output docs\editor.png
+$macos = '{"annotations":[],"backdrop":{"padding":72,"fill":{"kind":"gradient","from":"#0A1628","to":"#054BAA","angle":225},"cornerRadius":14,"shadow":true,"frame":"macos","aspect":"auto"}}'
+$macos | & $exe generate --input docs\editor.png --scene - --output docs\editor.png
 ```
 
-Frame per shot: `macos` for the full-app captures (editor/empty-state/beautify), `none` (padding + gradient only, smaller padding) for the `layers-panel` crop.
+Frame per shot: `macos` for the full-app captures (editor/empty-state/beautify/sketch), `none` for the `layers-panel` crop — same fill, but `padding:28` and `cornerRadius:8`.
+
+The geometry is load-bearing, because the committed sizes are fixed: a 1440×900 capture + `padding:72` + the 28px macOS title bar = **1584×1072**, and the 220×270 panel crop + `padding:28` = **276×326**. Change padding and every image silently changes size. `Failed to unregister class Chrome_WidgetWin_0` on stderr is benign WebView2 teardown noise — check the printed output path, not the exit chatter.
 
 ## Conventions
 
