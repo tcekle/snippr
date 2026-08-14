@@ -98,6 +98,11 @@ function baseOptions({ seed, roughness, strokeWidth, fill }: SketchOpts): Option
     roughness,
     bowing: 1,
     strokeWidth,
+    // Rough's wobble amplitude is in absolute pixels (default 2), so a heavy
+    // stroke swallows it whole and a 12px "hand-drawn" line comes out looking
+    // machine-straight. Scale it with the stroke, holding the default weight of
+    // 4 at Rough's own value so light strokes keep the look already tuned.
+    maxRandomnessOffset: Math.max(2, strokeWidth * 0.5),
     // Colours are applied by Konva on the resulting node, not baked into the
     // ops — so changing a colour never regenerates geometry.
     stroke: '#000',

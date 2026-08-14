@@ -147,6 +147,7 @@ export function PropertiesPanel() {
 
       <SketchControls />
       <CurveControl />
+      <ArrowHeadControl />
       <TextFontControl />
       <BoardControls />
       <PixelSizeControl />
@@ -368,6 +369,35 @@ function CurveControl() {
           style={{ flex: 1, accentColor: 'var(--color-accent)' }}
         />
         <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 30 }}>{curve.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Arrowhead size. The head already tracks the stroke, so this is a multiplier
+ *  on top of that — for a heavy head on a thin leader, or a restrained one on a
+ *  fat marker stroke. */
+function ArrowHeadControl() {
+  const { selectedId, annotations, updateAnnotation } = useEditorStore();
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  if (selected?.type !== 'arrow') return null;
+  const headScale = selected.headScale ?? 1;
+
+  const set = (v: number, commit: boolean) => {
+    updateAnnotation(selected.id, { headScale: v } as Partial<Annotation>, commit);
+  };
+
+  return (
+    <div>
+      <Label>Head Size</Label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input
+          type="range" min={0.4} max={4} step={0.1} value={headScale}
+          onChange={(e) => set(Number(e.target.value), false)}
+          onPointerUp={(e) => set(Number((e.target as HTMLInputElement).value), true)}
+          style={{ flex: 1, accentColor: 'var(--color-accent)' }}
+        />
+        <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 30 }}>{headScale.toFixed(1)}×</span>
       </div>
     </div>
   );

@@ -15,20 +15,25 @@ interface Props {
 }
 
 /** Head size tracks the stroke so a heavy leader does not end in a pin. At the
- *  default stroke width of 4 this reproduces Konva's 12/10 exactly, so a plain
- *  straight arrow looks the same as it always did. */
-const headLength = (sw: number) => sw * 3;
-const headHalfWidth = (sw: number) => sw * 1.25;
+ *  default stroke width of 4 and headScale 1 this reproduces Konva's 12/10
+ *  exactly, so an arrow drawn at the default weight is unchanged.
+ *
+ *  Konva's own pointerLength/pointerWidth are FIXED, which is the bug this
+ *  replaces: raise the stroke to 12 and a 12px head vanishes into a 12px-wide
+ *  shaft. Head size has to track the stroke to stay readable. */
+const headLength = (sw: number, scale: number) => sw * 3 * scale;
+const headHalfWidth = (sw: number, scale: number) => sw * 1.25 * scale;
 
 export function ArrowShape({ anno, onSelect, onChange }: Props) {
   const curve = anno.curve ?? 0;
   const bowed = Math.abs(curve) >= 0.01;
+  const headScale = anno.headScale ?? 1;
 
   const geom = useMemo(() => {
     if (!anno.sketch && !bowed) return null;
     const [x1, y1, x2, y2] = anno.points;
     const angle = leaderTangent(x1, y1, x2, y2, curve);
-    const barbs = arrowBarbs(x2, y2, angle, headLength(anno.strokeWidth), headHalfWidth(anno.strokeWidth));
+    const barbs = arrowBarbs(x2, y2, angle, headLength(anno.strokeWidth, headScale), headHalfWidth(anno.strokeWidth, headScale));
     if (!anno.sketch) {
       return { shaft: smoothLeaderPath(x1, y1, x2, y2, curve), barbs, sketched: false as const };
     }
@@ -40,7 +45,7 @@ export function ArrowShape({ anno, onSelect, onChange }: Props) {
       barbs,
       sketched: true as const,
     };
-  }, [anno.sketch, anno.points, anno.seed, anno.roughness, anno.strokeWidth, anno.id, curve, bowed]);
+  }, [anno.sketch, anno.points, anno.seed, anno.roughness, anno.strokeWidth, anno.id, curve, bowed, headScale]);
 
   const onDragEnd = (e: KonvaEventObject<DragEvent>) => {
     const dx = e.target.x();
@@ -60,8 +65,8 @@ export function ArrowShape({ anno, onSelect, onChange }: Props) {
         stroke={anno.stroke}
         strokeWidth={anno.strokeWidth}
         fill={anno.stroke}
-        pointerLength={12}
-        pointerWidth={10}
+        pointerLength={headLength(anno.strokeWidth, headScale)}
+        pointerWidth={headHalfWidth(anno.strokeWidth, headScale) * 2}
         draggable
         onClick={onSelect}
         onTap={onSelect}

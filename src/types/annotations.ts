@@ -22,7 +22,9 @@ export type Bowable = { curve?:number };
 export type RectAnno      = Base & Sketchable & { type:'rect'; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
 export type ShapeAnno     = Base & Sketchable & { type:'shape'; shape:ShapeKind; x:number; y:number; width:number; height:number; stroke:string; strokeWidth:number };
 export type EllipseAnno   = Base & Sketchable & { type:'ellipse'; x:number; y:number; radiusX:number; radiusY:number; stroke:string; strokeWidth:number };
-export type ArrowAnno     = Base & Sketchable & Bowable & { type:'arrow'; points:number[]; stroke:string; strokeWidth:number };
+/** Arrowhead size as a multiplier on the stroke-proportional default. 1 = the
+ *  proportional size; raise it for a heavy head on a thin leader. */
+export type ArrowAnno     = Base & Sketchable & Bowable & { type:'arrow'; points:number[]; stroke:string; strokeWidth:number; headScale?:number };
 export type LineAnno      = Base & Sketchable & Bowable & { type:'line'; points:number[]; stroke:string; strokeWidth:number };
 export type PenAnno       = Base & { type:'pen'; points:number[]; stroke:string; strokeWidth:number };
 export type HighlightAnno = Base & { type:'highlight'; points:number[]; stroke:string; strokeWidth:number };
