@@ -8,7 +8,7 @@
 
 snippr sits in your system tray and watches the clipboard. The moment the native Snipping Tool captures a screenshot, the snippr editor pops up with it loaded — draw arrows, boxes, text, badges, blur out secrets, then put the result back on the clipboard or save it as a PNG. No capture UI of its own, no replacing what Windows already does well.
 
-Beyond annotating snips, it also does the captures Windows can't: **scrolling capture** for long pages, **screen recording** to MP4/GIF, and a **Beautify** backdrop for polished, shareable shots.
+Beyond annotating snips, it also does the captures Windows can't: **screen recording** to MP4/GIF, region snapshots, and a **Beautify** backdrop for polished, shareable shots.
 
 ![snippr editor with annotations](docs/editor.png)
 
@@ -28,7 +28,6 @@ Ordinary copied images don't trigger the editor — snippr checks that the clipb
 - **Color presets** — the usual palette one click away; the last swatch unfolds the full picker with a hex input
 - **Beautify backdrop** — wrap a screenshot in padding, a gradient/solid background, rounded corners, a drop shadow and a macOS/browser window frame; non-destructive, baked only on export (see below)
 - **Screen recording** — record a region to **MP4** or **GIF** at 10/20/30 fps, with the cursor captured and a live outline around the recorded area (see below)
-- **Scrolling capture** — grab an entire scrollable page as one tall image (see below)
 - **Add screenshot** — grab any screen region and drop it straight into the current document (or a new tab if nothing's open)
 - **Open existing images** — paste (`Ctrl+V`) or drag files in; with nothing open the image becomes the tab's background, with a document open it lands as a movable **image layer** on top
 - **Pixelate** — drag a region to censor API keys, emails, faces
@@ -88,21 +87,6 @@ Record a slice of your screen to a video file — the capture Windows' tool does
 
 The mouse cursor is captured in the video. Files land in your save directory as `snippr_rec_<timestamp>.mp4`; choosing **GIF** writes the `.gif` *and* keeps the MP4. Recordings stop themselves after 10 minutes.
 
-## Scrolling capture
-
-For content taller than the screen — long pages, chat logs, code files — snippr can capture the whole thing as a single image (the one capture the native Snipping Tool can't do):
-
-1. Click **Scrolling capture** in the top bar (or the tray menu)
-2. The screen dims — **drag a rectangle** over the scrollable content
-3. Hands off: snippr parks the cursor in the region, scrolls automatically, and captures frames every 300 ms
-4. It stops by itself at the bottom (or press `Esc` to stop early and keep what it has) — the stitched result opens as a new tab
-
-Frames are joined by matching pixel rows between captures, ignoring the side margins (scrollbars) and auto-detecting sticky footers so they appear only once. Tips:
-
-- Select **only the scrolling content** — exclude browser chrome and sticky headers when you can
-- Animated content (video, GIFs, carousels) breaks frame matching — leave it out of the region
-- Output height is capped at 16,000 px (canvas texture limit)
-
 ## Keyboard shortcuts
 
 | Key | Action |
@@ -125,7 +109,6 @@ Frames are joined by matching pixel rows between captures, ignoring the side mar
 
 - **Open editor** — bring up the window (left-click does this too)
 - **Annotate clipboard image** — manually pull in whatever image is on the clipboard
-- **Scrolling capture** — capture a scrollable page as one tall image
 - **Pause watching** — stop reacting to snips
 - **Settings** — save directory, trigger-on-any-image, start with Windows
 - **Quit**
@@ -155,8 +138,7 @@ The installer is unsigned — SmartScreen will warn on first run (`More info →
 ## Architecture
 
 - **Backend (Rust / Tauri 2):** a Win32 message-only window registered with `AddClipboardFormatListener` watches the clipboard. New images are attributed via `GetClipboardOwner` → process name (`ScreenClippingHost.exe` / `SnippingTool.exe`), debounced (the Snipping Tool writes the clipboard once per format), PNG-encoded, and handed to the frontend over raw binary IPC. Exports flow back the same way; a feedback-loop guard keeps snippr's own clipboard writes from re-triggering the watcher.
-- **Region overlays:** scrolling capture, "add screenshot", and recording all share one transparent always-on-top overlay (one window per monitor for mixed-DPI correctness) that hosts the region selector and reports which mode it's in.
-- **Scrolling capture:** a Rust thread drives the target with `SendInput` mouse-wheel events, grabs frames via GDI `BitBlt`, and stitches them with a row-matching algorithm ported from [ShareX](https://github.com/ShareX/ShareX)'s scrolling capture (side margins ignored, sticky footers deduplicated, stop on two identical frames). `Esc` is a thread-level `RegisterHotKey`. The stitcher is covered by unit tests against synthetic scroll sequences.
+- **Region overlays:** "add screenshot" and recording share one transparent always-on-top overlay (one window per monitor for mixed-DPI correctness) that hosts the region selector and reports which mode it's in.
 - **Screen recording:** a recorder thread captures the region via GDI `BitBlt` (compositing the cursor with `DrawIconEx`) and encodes H.264 to MP4 through a Media Foundation `SinkWriter`, paced to constant frame rate by wall-clock index so stalls drop frames instead of slowing playback. GIF output is a second pass: the finished MP4 is decoded with an MF `SourceReader` and re-encoded via the `gif` crate. Frames are fed top-down with a positive stride — the encoder MFT ignores the stride-sign hint, so that orientation is verified against a real decoder, not a self-consistent MF round-trip.
 - **Frontend (React 19 + Konva):** the screenshot is the bottom layer of a Konva stage; annotations are plain data rendered declaratively, with snapshot-based undo/redo in a zustand store. The non-destructive **crop** and **Beautify backdrop** are document state (parked per tab, in undo history), composed only at export. Export resets the stage transform and rasterizes at native resolution.
 

@@ -32,7 +32,9 @@ function App() {
   usePaletteBootstrap();
   const { isDragging } = useImageImport();
 
-  // Listen for scrolling capture errors emitted by the Rust side
+  // Region-capture failures from the Rust side. The event keeps its original
+  // name so restoring scrolling capture stays a clean revert; it currently
+  // carries snapshot and PNG-encode errors.
   useEffect(() => {
     const unlisten = listen<{ message: string }>('scroll-capture-error', (event) => {
       showToast(event.payload.message, true);

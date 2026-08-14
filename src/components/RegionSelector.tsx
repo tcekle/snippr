@@ -24,12 +24,12 @@ export function RegionSelector() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [drag, setDrag] = useState<DragRect | null>(null);
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
-  const [mode, setMode] = useState<'scrolling' | 'snapshot' | 'recording'>('scrolling');
+  const [mode, setMode] = useState<'snapshot' | 'recording'>('snapshot');
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // The same overlay hosts every capture flavour; Rust knows which one
   useEffect(() => {
-    invoke<'scrolling' | 'snapshot' | 'recording'>('get_selection_mode')
+    invoke<'snapshot' | 'recording'>('get_selection_mode')
       .then(setMode)
       .catch(console.error);
   }, []);
@@ -95,14 +95,11 @@ export function RegionSelector() {
       const width = Math.max(1, Math.round(rect.width * sf));
       const height = Math.max(1, Math.round(rect.height * sf));
 
-      const cmd =
-        mode === 'snapshot' ? 'capture_snapshot'
-        : mode === 'recording' ? 'start_recording'
-        : 'start_scrolling_capture';
+      const cmd = mode === 'recording' ? 'start_recording' : 'capture_snapshot';
       await invoke(cmd, { x, y, width, height });
     } catch (err) {
       console.error('capture command failed', err);
-      // Rust side will also emit scroll-capture-error to main window
+      // Rust side will also emit capture-error to the main window
     }
   };
 
@@ -166,11 +163,9 @@ export function RegionSelector() {
           whiteSpace: 'nowrap',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
         }}>
-          {mode === 'snapshot'
-            ? 'Drag to capture a region — Esc to cancel'
-            : mode === 'recording'
+          {mode === 'recording'
             ? 'Drag to select recording area — Esc to cancel'
-            : 'Drag to select scroll area — Esc to cancel'}
+            : 'Drag to capture a region — Esc to cancel'}
         </div>
       )}
 
@@ -229,11 +224,7 @@ export function RegionSelector() {
             border: '1px solid rgba(255,255,255,0.15)',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
           }}>
-            {mode === 'snapshot'
-              ? 'Capturing…'
-              : mode === 'recording'
-              ? 'Starting recording…'
-              : 'Capturing — scroll happens automatically, Esc to stop'}
+            {mode === 'recording' ? 'Starting recording…' : 'Capturing…'}
           </div>
         </div>
       )}

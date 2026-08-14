@@ -2,7 +2,7 @@
 //! Screen recording (milestone 1): region → temp MP4 via Media Foundation.
 //!
 //! Flow mirrors the snapshot path but writes H.264 instead of a PNG:
-//!   tray/frontend → begin_recording_selection (reuses the scrolling overlay)
+//!   tray/frontend → begin_recording_selection (reuses the region overlay)
 //!   → frontend draws region → start_recording (spawns the recorder thread,
 //!   opens the floating toolbar) → recorder writes CFR frames to a temp MP4 →
 //!   stop_recording / cancel_recording / Esc / 10-min cap → Finalize, move to
@@ -61,7 +61,8 @@ const TOOLBAR_GAP_LOGICAL: f64 = 8.0;
 /// Hard cap on recording length. Hits the same path as a manual stop&save.
 const MAX_DURATION: Duration = Duration::from_secs(10 * 60);
 
-/// Esc hotkey id on the recorder thread (capture_session uses 1; we use 2).
+/// Esc hotkey id on the recorder thread. Kept at 2: id 1 belonged to the
+/// scrolling-capture thread, and leaving the gap avoids a clash if it returns.
 const HOTKEY_ID: i32 = 2;
 
 /// Stop-signal values written by the stop/cancel commands and Esc.

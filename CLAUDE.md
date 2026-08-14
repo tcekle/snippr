@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-snippr — Windows tray app companion to the native Snipping Tool. Tauri 2 (Rust) + React 19 + Konva + zustand. Watches the clipboard for snips, pops an annotation editor, exports back to clipboard/PNG. Also: scrolling capture, region snapshots, screen recording.
+snippr — Windows tray app companion to the native Snipping Tool. Tauri 2 (Rust) + React 19 + Konva + zustand. Watches the clipboard for snips, pops an annotation editor, exports back to clipboard/PNG. Also: region snapshots and screen recording. (Scrolling capture is withheld pending a licensing review of its stitcher — see below.)
 
 ## Commands
 
@@ -8,15 +8,15 @@ snippr — Windows tray app companion to the native Snipping Tool. Tauri 2 (Rust
 npm run tauri dev                                      # run the app (Rust auto-rebuilds)
 npm run dev                                            # frontend only, plain browser (demo mode below)
 npx tsc --noEmit                                       # frontend typecheck — run after TS changes
-cargo test  --manifest-path src-tauri/Cargo.toml       # Rust tests (stitch + MF encode run for real)
+cargo test  --manifest-path src-tauri/Cargo.toml       # Rust tests (MF encode runs for real)
 cargo check --manifest-path src-tauri/Cargo.toml
 npm run tauri build                                    # NSIS installer
 ```
 
 ## Architecture
 
-- **IPC**: images cross the bridge as raw binary (`tauri::ipc::Response` / `tauri::ipc::Request` raw body) — never base64/JSON. Rust emits events to the `"main"` window (`snip-captured`, `snapshot-captured`, `recording-saved`, `recording-error`, `scroll-capture-error`); the frontend pulls pending bytes via `get_pending_image` (slot is `take()`n).
-- **Multi-window**: one React bundle, routed by window label in `src/main.tsx` — `main` (editor), `overlay-N` (one region-selection overlay per monitor), `rec-toolbar` (floating recorder bar). The overlay asks `get_selection_mode` (`scrolling` | `snapshot` | `recording`) to decide which command its drag fires. New labels go in `src-tauri/capabilities/default.json`.
+- **IPC**: images cross the bridge as raw binary (`tauri::ipc::Response` / `tauri::ipc::Request` raw body) — never base64/JSON. Rust emits events to the `"main"` window (`snip-captured`, `snapshot-captured`, `recording-saved`, `recording-error`, `scroll-capture-error` — the last keeps its name so restoring scrolling capture stays a clean revert; it currently carries snapshot/encode failures); the frontend pulls pending bytes via `get_pending_image` (slot is `take()`n).
+- **Multi-window**: one React bundle, routed by window label in `src/main.tsx` — `main` (editor), `overlay-N` (one region-selection overlay per monitor), `rec-toolbar` (floating recorder bar). The overlay asks `get_selection_mode` (`snapshot` | `recording`) to decide which command its drag fires. Mode 0 was scrolling capture; the numbering is left alone so restoring it doesn't renumber the others. New labels go in `src-tauri/capabilities/default.json`.
 - **Editor state**: `src/store/editorStore.ts` — flat fields are the ACTIVE tab; inactive tabs park a `DocSnapshot`. Undo/redo = annotation-array snapshots. Annotations are plain data discriminated on `type` (`src/types/annotations.ts`), rendered declaratively in `EditorCanvas.tsx`.
 - **Clipboard watcher** (`clipboard_watcher.rs`): Win32 message-only window + `AddClipboardFormatListener`; snips attributed via `GetClipboardOwner` → process name; `ignore_next` flag prevents export→re-trigger feedback loop.
 
@@ -24,7 +24,7 @@ npm run tauri build                                    # NSIS installer
 
 - **Any Tauri command that creates a window MUST be `pub async fn`.** A sync command deadlocks on Windows: `build()` blocks the main thread, which is blocked on the command's IPC reply.
 - **windows crate 0.58 + 0.61 coexist** in the dep graph. Pass zero-value sentinels (`HWND::default()`, `HANDLE::default()`) or concretely-typed `None::<&IMFAttributes>` — never bare `None` — or the `Param` trait impls conflict between windows_core versions.
-- **Screen capture is GDI `BitBlt` with `CAPTUREBLT`** (`capture_screen_rect[_bgra]` in `scrolling_capture.rs`); frames are top-down. H.264 needs even width/height (round down).
+- **Screen capture is GDI `BitBlt` with `CAPTUREBLT`** (`capture_screen_rect` / `capture_screen_rect_bgra_cursor` in `scrolling_capture.rs` — the module keeps its name but now holds only the overlay, snapshot and the shared GDI helpers); frames are top-down. H.264 needs even width/height (round down).
 - **MF H.264 video orientation: feed top-down BGRA verbatim with a POSITIVE stride.** The SinkWriter's encoder MFT treats the input buffer as top-down and ignores the `MF_MT_DEFAULT_STRIDE` sign hint — a negative stride or a manual row-flip both produce upside-down video. Do NOT trust an MF SourceReader encode→decode round-trip to verify orientation: both ends share the same stride convention, so a flip cancels and the test lies. Verify with an **external** decoder. Quick browser oracle: encode a 4-colour quadrant pattern (TL red / TR green / BL blue / BR yellow), load the mp4 in a `<video>`+`<canvas>` page, screenshot via headless Edge (`--headless=new --autoplay-policy=no-user-gesture-required`), read the corners. Upright = same as source.
 - **Coordinates**: overlays compute physical px as `CSS px × scaleFactor + outerPosition`, per overlay window (mixed-DPI safe). Rust takes physical coords everywhere.
 - **Text annotations are created on pointerUP**, not pointerdown — a textarea mounted during pointerdown is blurred by the browser's own mousedown focus pass and instantly self-deletes.
@@ -62,6 +62,14 @@ $macos | & $exe generate --input docs\editor.png --scene - --output docs\editor.
 Frame per shot: `macos` for the full-app captures (editor/empty-state/beautify/sketch), `none` for the `layers-panel` crop — same fill, but `padding:28` and `cornerRadius:8`.
 
 The geometry is load-bearing, because the committed sizes are fixed: a 1440×900 capture + `padding:72` + the 28px macOS title bar = **1584×1072**, and the 220×270 panel crop + `padding:28` = **276×326**. Change padding and every image silently changes size. `Failed to unregister class Chrome_WidgetWin_0` on stderr is benign WebView2 teardown noise — check the printed output path, not the exit chatter.
+
+## Withheld: scrolling capture
+
+Removed from the shipped tool in `HEAD`, pending a licensing review. Its row-matching stitcher was ported from ShareX, which is **GPL-3.0**, and this repo has no LICENSE file — so shipping it in a signed binary release was the part that needed settling, not the README wording.
+
+What came out: the stitcher and its tests, `capture_session`, `send_scroll`, the `begin_scrolling_selection` / `start_scrolling_capture` commands, the tray item and the top-bar button. What stayed: the region overlay, the selection-mode tri-state, `check_hotkey`, `store_and_emit` and the GDI capture helpers — snapshot and recording all depend on those and none of them are ShareX-derived.
+
+To restore, start from `git show 88e6db3:src-tauri/src/scrolling_capture.rs`. Resolve the licence question first: either license snippr GPL-3.0 and keep the attribution, or replace the stitcher with an independently designed one.
 
 ## Conventions
 
