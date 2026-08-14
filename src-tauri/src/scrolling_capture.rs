@@ -271,7 +271,7 @@ fn snapshot_session(app: AppHandle, x: i32, y: i32, width: u32, height: u32) {
 ///
 /// Returns `w*h*4` bytes on success. This is the shared core behind both
 /// `capture_screen_rect` (which swaps to RGBA for `image`/PNG) and
-/// `capture_screen_rect_bgra` (which hands the bytes straight to Media
+/// `capture_screen_rect_bgra_cursor` (which hands the bytes straight to Media
 /// Foundation, whose RGB32 input format *is* BGRA — so no swap is wasted).
 ///
 /// We pass zero-value handle sentinels rather than Option<HDC> because in a
@@ -374,14 +374,12 @@ unsafe fn capture_screen_rect(x: i32, y: i32, w: u32, h: u32) -> Option<RgbaImag
 }
 
 /// Capture a rectangle of the screen (physical coords) into a raw, top-down
-/// 32bpp BGRA buffer for the video encoder. No channel swap (MF RGB32 == BGRA),
-/// which is both cheaper and the orientation/order the SinkWriter wants.
-pub(crate) unsafe fn capture_screen_rect_bgra(x: i32, y: i32, w: u32, h: u32) -> Option<Vec<u8>> {
-    capture_screen_rect_raw(x, y, w, h, false)
-}
-
-/// Like `capture_screen_rect_bgra` but composites the live mouse cursor onto the
-/// frame — recordings should show the pointer (snapshot/scrolling capture don't).
+/// 32bpp BGRA buffer for the video encoder, with the live mouse cursor
+/// composited on — recordings should show the pointer, where snapshot and
+/// scrolling capture deliberately don't.
+///
+/// No channel swap: MF's RGB32 input format *is* BGRA, so handing GDI's native
+/// order straight over is both cheaper and the orientation the SinkWriter wants.
 pub(crate) unsafe fn capture_screen_rect_bgra_cursor(
     x: i32,
     y: i32,

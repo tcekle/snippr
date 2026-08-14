@@ -8,7 +8,7 @@
 //!   stop_recording / cancel_recording / Esc / 10-min cap → Finalize, move to
 //!   the save directory (or discard) → recording-saved / recording-error.
 //!
-//! We reuse `scrolling_capture`'s GDI capture (`capture_screen_rect_bgra`,
+//! We reuse `scrolling_capture`'s GDI capture (`capture_screen_rect_bgra_cursor`,
 //! which hands MF the native BGRA bytes with no wasted channel swap), its
 //! overlay teardown (`destroy_overlays`), and its Esc-hotkey drain
 //! (`check_hotkey`). The recorder runs on its own thread so the command
@@ -650,7 +650,7 @@ fn run_capture_loop(x: i32, y: i32, width: u32, height: u32, fps: u32) -> LoopRe
             match scrolling_capture::capture_screen_rect_bgra_cursor(x, y, width, height) {
                 Some(buf) => Some((target, buf)),
                 None => {
-                    log::error!("recording: capture_screen_rect_bgra failed; stopping");
+                    log::error!("recording: capture_screen_rect_bgra_cursor failed; stopping");
                     STOP_SIGNAL.store(STOP_SAVE, Ordering::SeqCst);
                     None
                 }
