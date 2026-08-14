@@ -35,15 +35,87 @@ function conform(r: CropRect, ratio: number, imgW: number, imgH: number): CropRe
   return { x, y, width: w, height: h, rotation: r.rotation ?? 0 };
 }
 
+/** Annotations spell their main colour differently — outlines stroke, text and
+ *  badges fill, the loupe strokes its lens border. Null = the type has no
+ *  colour of its own (pixelate, spotlight, image). */
+function colorField(a: Annotation): 'stroke' | 'fill' | 'borderColor' | null {
+  switch (a.type) {
+    case 'rect': case 'shape': case 'ellipse':
+    case 'arrow': case 'line': case 'pen': case 'highlight':
+      return 'stroke';
+    case 'text': case 'badge':
+      return 'fill';
+    case 'loupe':
+      return 'borderColor';
+    default:
+      return null;
+  }
+}
+
+/** Same idea for line weight. Text and badge scale by fontSize/radius instead,
+ *  which have their own controls. */
+function widthField(a: Annotation): 'strokeWidth' | 'borderWidth' | null {
+  switch (a.type) {
+    case 'rect': case 'shape': case 'ellipse':
+    case 'arrow': case 'line': case 'pen': case 'highlight':
+      return 'strokeWidth';
+    case 'loupe':
+      return 'borderWidth';
+    default:
+      return null;
+  }
+}
+
 export function PropertiesPanel() {
-  const { strokeColor, strokeWidth, fontSize, activeTool, setStrokeColor, setStrokeWidth, setFontSize } = useEditorStore();
-  const isPreset = PRESET_COLORS.includes(strokeColor);
+  const {
+    strokeColor, strokeWidth, fontSize, activeTool, selectedId, annotations,
+    setStrokeColor, setStrokeWidth, setFontSize, updateAnnotation,
+  } = useEditorStore();
+
+  // With something selected these controls edit IT; with nothing selected they
+  // set the default for the next shape drawn. Editing the selection also moves
+  // the default, so the swatch you just clicked is the one you keep drawing in.
+  const selected = selectedId ? annotations.find((a) => a.id === selectedId) : null;
+  const selColorField = selected ? colorField(selected) : null;
+  const selWidthField = selected ? widthField(selected) : null;
+
+  const shownColor = (selected && selColorField
+    ? (selected as unknown as Record<string, string>)[selColorField]
+    : strokeColor) ?? strokeColor;
+  const shownWidth = (selected && selWidthField
+    ? (selected as unknown as Record<string, number>)[selWidthField]
+    : strokeWidth) ?? strokeWidth;
+
+  const applyColor = (c: string, commit = true) => {
+    if (selected && selColorField) {
+      updateAnnotation(selected.id, { [selColorField]: c } as Partial<Annotation>, commit);
+    }
+    setStrokeColor(c);
+  };
+  const applyWidth = (w: number, commit: boolean) => {
+    if (selected && selWidthField) {
+      updateAnnotation(selected.id, { [selWidthField]: w } as Partial<Annotation>, commit);
+    }
+    setStrokeWidth(w);
+  };
+  const applyFontSize = (s: number, commit: boolean) => {
+    if (selected?.type === 'text') {
+      updateAnnotation(selected.id, { fontSize: s } as Partial<Annotation>, commit);
+    }
+    setFontSize(s);
+  };
+
+  const isPreset = PRESET_COLORS.includes(shownColor);
   // Auto-open when the current color is already a custom one
   const [customOpen, setCustomOpen] = useState(() => !isPreset);
 
-  const showFontSize = activeTool === 'text';
-  // The backdrop tool has its own fill controls; stroke color/width don't apply there.
-  const showAnnotationStyles = activeTool !== 'backdrop';
+  const shownFontSize = selected?.type === 'text' ? selected.fontSize : fontSize;
+  const showFontSize = activeTool === 'text' || selected?.type === 'text';
+  // The backdrop tool has its own fill controls; stroke color/width don't apply
+  // there. A selected annotation overrides the tool — you can recolour a shape
+  // while the backdrop tool happens to be active.
+  const showAnnotationStyles = selected ? !!selColorField : activeTool !== 'backdrop';
+  const showWidth = selected ? !!selWidthField : activeTool !== 'backdrop';
 
   return (
     <div style={{
@@ -57,12 +129,12 @@ export function PropertiesPanel() {
           {PRESET_COLORS.map((c) => (
             <button
               key={c}
-              onClick={() => setStrokeColor(c)}
+              onClick={() => applyColor(c)}
               title={c}
               style={{
                 width: '100%', aspectRatio: '1', borderRadius: 4,
                 background: c,
-                border: c === strokeColor ? '2px solid var(--color-accent)' : '2px solid transparent',
+                border: c === shownColor ? '2px solid var(--color-accent)' : '2px solid transparent',
                 boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
                 cursor: 'pointer', padding: 0,
                 outline: 'none',
@@ -86,7 +158,7 @@ export function PropertiesPanel() {
               // Show the picked custom color in the tile's center
               <span style={{
                 position: 'absolute', inset: 4, borderRadius: 2,
-                background: strokeColor,
+                background: shownColor,
                 border: '1px solid rgba(255,255,255,0.4)',
               }} />
             )}
@@ -94,14 +166,19 @@ export function PropertiesPanel() {
         </div>
         {customOpen && (
           <>
-            <div style={{ borderRadius: 8, overflow: 'hidden', marginTop: 10 }}>
-              <HexColorPicker color={strokeColor} onChange={setStrokeColor} style={{ width: '100%' }} />
+            {/* Dragging the picker fires continuously — stream the change without
+                history, then commit one undo entry when the drag ends. */}
+            <div
+              style={{ borderRadius: 8, overflow: 'hidden', marginTop: 10 }}
+              onPointerUp={() => applyColor(shownColor, true)}
+            >
+              <HexColorPicker color={shownColor} onChange={(c) => applyColor(c, false)} style={{ width: '100%' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-              <div style={{ width: 20, height: 20, borderRadius: 4, background: strokeColor, flexShrink: 0, border: '1px solid rgba(255,255,255,0.2)' }} />
+              <div style={{ width: 20, height: 20, borderRadius: 4, background: shownColor, flexShrink: 0, border: '1px solid rgba(255,255,255,0.2)' }} />
               <HexColorInput
-                color={strokeColor}
-                onChange={setStrokeColor}
+                color={shownColor}
+                onChange={(c) => applyColor(c)}
                 prefixed
                 style={{
                   width: '100%', minWidth: 0,
@@ -117,16 +194,17 @@ export function PropertiesPanel() {
       </div>
       )}
 
-      {showAnnotationStyles && (
+      {showWidth && (
       <div>
         <Label>Stroke Width</Label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
-            type="range" min={1} max={12} value={strokeWidth}
-            onChange={(e) => setStrokeWidth(Number(e.target.value))}
+            type="range" min={1} max={12} value={shownWidth}
+            onChange={(e) => applyWidth(Number(e.target.value), false)}
+            onPointerUp={(e) => applyWidth(Number((e.target as HTMLInputElement).value), true)}
             style={{ flex: 1, accentColor: 'var(--color-accent)' }}
           />
-          <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 20 }}>{strokeWidth}</span>
+          <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 20 }}>{shownWidth}</span>
         </div>
       </div>
       )}
@@ -136,11 +214,12 @@ export function PropertiesPanel() {
           <Label>Font Size</Label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
-              type="range" min={10} max={72} value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
+              type="range" min={10} max={72} value={shownFontSize}
+              onChange={(e) => applyFontSize(Number(e.target.value), false)}
+              onPointerUp={(e) => applyFontSize(Number((e.target as HTMLInputElement).value), true)}
               style={{ flex: 1, accentColor: 'var(--color-accent)' }}
             />
-            <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 24 }}>{fontSize}</span>
+            <span style={{ color: 'var(--color-text)', fontSize: 13, minWidth: 24 }}>{shownFontSize}</span>
           </div>
         </div>
       )}
